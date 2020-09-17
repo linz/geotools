@@ -50,19 +50,6 @@ public class MySQLDialectPrepared extends PreparedStatementSQLDialect {
     public MySQLDialectPrepared(JDBCDataStore dataStore, boolean usePreciseSpatialOps) {
         super(dataStore);
         delegate = new MySQLDialect(dataStore);
-        delegate.setUsePreciseSpatialOps(usePreciseSpatialOps);
-    }
-
-    public void setStorageEngine(String storageEngine) {
-        delegate.setStorageEngine(storageEngine);
-    }
-
-    public void setUsePreciseSpatialOps(boolean usePreciseSpatialOps) {
-        delegate.setUsePreciseSpatialOps(usePreciseSpatialOps);
-    }
-
-    public boolean getUsePreciseSpatialOps() {
-        return delegate.getUsePreciseSpatialOps();
     }
 
     @Override
