@@ -32,9 +32,4 @@ public class InformixJNDIDataStoreFactory extends JDBCJNDIDataStoreFactory {
         super(new InformixDataStoreFactory());
     }
 
-    @Override
-    protected void setupParameters(Map parameters) {
-        super.setupParameters(parameters);
-        parameters.put(STORAGE_ENGINE.key, STORAGE_ENGINE);
-    }
 }
