@@ -65,33 +65,8 @@ public class MySQLDialect extends SQLDialect {
     protected Integer MULTIPOLYGON = Integer.valueOf(2006);
     protected Integer GEOMETRY = Integer.valueOf(2007);
 
-    /** the storage engine to use when creating tables, one of MyISAM, InnoDB */
-    protected String storageEngine;
-
-    /**
-     * flag that indicates that precise spatial operation should be used (should apply to MySQL
-     * versions 5.6 and above)
-     */
-    protected boolean usePreciseSpatialOps;
-
     public MySQLDialect(JDBCDataStore dataStore) {
         super(dataStore);
-    }
-
-    public void setStorageEngine(String storageEngine) {
-        this.storageEngine = storageEngine;
-    }
-
-    public String getStorageEngine() {
-        return storageEngine;
-    }
-
-    public void setUsePreciseSpatialOps(boolean usePreciseSpatialOps) {
-        this.usePreciseSpatialOps = usePreciseSpatialOps;
-    }
-
-    public boolean getUsePreciseSpatialOps() {
-        return usePreciseSpatialOps;
     }
 
     @Override
@@ -316,8 +291,7 @@ public class MySQLDialect extends SQLDialect {
     }
 
     public void encodePostCreateTable(String tableName, StringBuffer sql) {
-        // TODO: make this configurable
-        sql.append("ENGINE=" + storageEngine);
+
     }
 
     @Override
