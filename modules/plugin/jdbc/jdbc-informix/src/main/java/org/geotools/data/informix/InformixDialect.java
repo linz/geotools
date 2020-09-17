@@ -49,12 +49,12 @@ import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
 /**
- * Delegate for {@link MySQLDialectBasic} and {@link MySQLDialectPrepared} which implements the
+ * Delegate for {@link InformixDialectBasic} and {@link InformixDialectPrepared} which implements the
  * common part of the api.
  *
  * @author Justin Deoliveira, OpenGEO
  */
-public class MySQLDialect extends SQLDialect {
+public class InformixDialect extends SQLDialect {
     /** mysql spatial types */
     protected Integer POINT = Integer.valueOf(2001);
 
@@ -65,7 +65,7 @@ public class MySQLDialect extends SQLDialect {
     protected Integer MULTIPOLYGON = Integer.valueOf(2006);
     protected Integer GEOMETRY = Integer.valueOf(2007);
 
-    public MySQLDialect(JDBCDataStore dataStore) {
+    public InformixDialect(JDBCDataStore dataStore) {
         super(dataStore);
     }
 

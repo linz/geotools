@@ -16,9 +16,6 @@
  */
 package org.geotools.data.informix;
 
-import java.io.IOException;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.Collections;
 import java.util.Map;
 import org.geotools.data.Parameter;
@@ -47,7 +44,7 @@ public class InformixDataStoreFactory extends JDBCDataStoreFactory {
 
     protected SQLDialect createSQLDialect(JDBCDataStore dataStore) {
         // return new MySQLDialectPrepared(dataStore);
-        return new MySQLDialectBasic(dataStore);
+        return new InformixDialectBasic(dataStore);
     }
 
     public String getDisplayName() {
