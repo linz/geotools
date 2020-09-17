@@ -39,17 +39,17 @@ import org.opengis.feature.type.GeometryDescriptor;
  *
  * @author Justin Deoliveira, OpenGEO
  */
-public class MySQLDialectPrepared extends PreparedStatementSQLDialect {
+public class InformixDialectPrepared extends PreparedStatementSQLDialect {
 
-    MySQLDialect delegate;
+    InformixDialect delegate;
 
-    public MySQLDialectPrepared(JDBCDataStore dataStore) {
+    public InformixDialectPrepared(JDBCDataStore dataStore) {
         this(dataStore, false);
     }
 
-    public MySQLDialectPrepared(JDBCDataStore dataStore, boolean usePreciseSpatialOps) {
+    public InformixDialectPrepared(JDBCDataStore dataStore, boolean usePreciseSpatialOps) {
         super(dataStore);
-        delegate = new MySQLDialect(dataStore);
+        delegate = new InformixDialect(dataStore);
     }
 
     @Override

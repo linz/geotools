@@ -38,15 +38,15 @@ import org.opengis.filter.spatial.Overlaps;
 import org.opengis.filter.spatial.Touches;
 import org.opengis.filter.spatial.Within;
 
-public class MySQLFilterToSQL extends FilterToSQL {
+public class InformixFilterToSQL extends FilterToSQL {
 
     protected boolean usePreciseSpatialOps;
 
-    public MySQLFilterToSQL() {
+    public InformixFilterToSQL() {
         this(false);
     }
 
-    public MySQLFilterToSQL(boolean usePreciseSpatialOps) {
+    public InformixFilterToSQL(boolean usePreciseSpatialOps) {
         super();
         this.usePreciseSpatialOps = usePreciseSpatialOps;
     }

@@ -41,17 +41,17 @@ import org.opengis.feature.type.GeometryDescriptor;
  * @author Justin Deoliveira, OpenGEO
  * @author Nikolaos Pringouris <nprigour@gmail.com> added support for MySQL versions 5.6 (and above)
  */
-public class MySQLDialectBasic extends BasicSQLDialect {
+public class InformixDialectBasic extends BasicSQLDialect {
 
-    MySQLDialect delegate;
+    InformixDialect delegate;
 
-    public MySQLDialectBasic(JDBCDataStore dataStore) {
+    public InformixDialectBasic(JDBCDataStore dataStore) {
         this(dataStore, false);
     }
 
-    public MySQLDialectBasic(JDBCDataStore dataStore, boolean usePreciseSpatialOps) {
+    public InformixDialectBasic(JDBCDataStore dataStore, boolean usePreciseSpatialOps) {
         super(dataStore);
-        delegate = new MySQLDialect(dataStore);
+        delegate = new InformixDialect(dataStore);
     }
 
     @Override
@@ -235,7 +235,7 @@ public class MySQLDialectBasic extends BasicSQLDialect {
 
     @Override
     public FilterToSQL createFilterToSQL() {
-        return new MySQLFilterToSQL();
+        return new InformixFilterToSQL();
     }
 
     @Override
