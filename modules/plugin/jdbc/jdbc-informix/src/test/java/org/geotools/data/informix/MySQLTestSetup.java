@@ -16,7 +16,6 @@
  */
 package org.geotools.data.informix;
 
-import java.sql.Connection;
 import java.util.Properties;
 import org.apache.commons.dbcp.BasicDataSource;
 import org.geotools.jdbc.JDBCDataStore;
@@ -34,7 +33,7 @@ public class MySQLTestSetup extends JDBCTestSetup {
     protected void initializeDataSource(BasicDataSource ds, Properties db) {
         super.initializeDataSource(ds, db);
 
-        ds.setDefaultTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+        // ds.setDefaultTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
     }
 
     @Override
@@ -44,20 +43,20 @@ public class MySQLTestSetup extends JDBCTestSetup {
 
     protected void setUpData() throws Exception {
         // allow time parsing in str_to_date
-        run("SET GLOBAL sql_mode=(SELECT REPLACE(@@sql_mode,'NO_ZERO_IN_DATE',''));");
-        run("SET GLOBAL sql_mode=(SELECT REPLACE(@@sql_mode,'NO_ZERO_DATE',''));");
+        //        run("SET GLOBAL sql_mode=(SELECT REPLACE(@@sql_mode,'NO_ZERO_IN_DATE',''));");
+        //        run("SET GLOBAL sql_mode=(SELECT REPLACE(@@sql_mode,'NO_ZERO_DATE',''));");
 
         // drop old data
         try {
             run("DROP TABLE ft1;");
         } catch (Exception e) {
-            // e.printStackTrace();
+            //            e.printStackTrace();
         }
 
         try {
             run("DROP TABLE ft2;");
         } catch (Exception e) {
-            // e.printStackTrace();
+            //            e.printStackTrace();
         }
         runSafe("DELETE FROM geometry_columns");
 
@@ -65,28 +64,28 @@ public class MySQLTestSetup extends JDBCTestSetup {
         StringBuffer sb = new StringBuffer();
         // JD: COLLATE latin1_general_cs is neccesary to ensure case-sensitive string comparisons
         sb.append("CREATE TABLE ft1 ")
-                .append("(id int AUTO_INCREMENT PRIMARY KEY , ")
-                .append("geometry POINT, intProperty int, ")
-                .append(
-                        "doubleProperty double, stringProperty varchar(255) COLLATE latin1_general_cs) ENGINE=InnoDB;");
+                .append("(id integer PRIMARY KEY , ")
+                .append("geometry ST_Point, intProperty integer, ")
+                .append("doubleProperty double precision, stringProperty varchar(255));");
+        System.out.println(sb.toString());
         run(sb.toString());
 
         // setup so that we can start counting from 0, otherwise 0 is treated as a special value
-        run("SET sql_mode='NO_AUTO_VALUE_ON_ZERO';");
+        //        run("SET sql_mode='NO_AUTO_VALUE_ON_ZERO';");
 
         sb = new StringBuffer();
         sb.append("INSERT INTO ft1 VALUES (")
-                .append("0,GeometryFromText('POINT(0 0)',4326), 0, 0.0,'zero');");
+                .append("0,ST_GeomFromText('POINT(0 0)',0)::ST_Point, 0, 0.0,'zero');");
         run(sb.toString());
 
         sb = new StringBuffer();
         sb.append("INSERT INTO ft1 VALUES (")
-                .append("1,GeometryFromText('POINT(1 1)',4326), 1, 1.1,'one');");
+                .append("1,ST_GeomFromText('POINT(1 1)',0)::ST_Point, 1, 1.1,'one');");
         run(sb.toString());
 
         sb = new StringBuffer();
         sb.append("INSERT INTO ft1 VALUES (")
-                .append("2,GeometryFromText('POINT(2 2)',4326), 2, 2.2,'two');");
+                .append("2,ST_GeomFromText('POINT(2 2)',0)::ST_Point, 2, 2.2,'two');");
         run(sb.toString());
     }
 

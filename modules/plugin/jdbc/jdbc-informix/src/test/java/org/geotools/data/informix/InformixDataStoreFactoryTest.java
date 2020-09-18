@@ -18,7 +18,6 @@ package org.geotools.data.informix;
 
 import java.util.HashMap;
 import junit.framework.TestCase;
-import org.geotools.jdbc.JDBCDataStore;
 import org.geotools.jdbc.JDBCDataStoreFactory;
 
 public class InformixDataStoreFactoryTest extends TestCase {

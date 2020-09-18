@@ -27,20 +27,20 @@ public class MySQLAggregateTestSetup extends JDBCAggregateTestSetup {
     @Override
     protected void createAggregateTable() throws Exception {
         run(
-                "CREATE TABLE aggregate(fid int AUTO_INCREMENT PRIMARY KEY, id int, "
-                        + "geom POLYGON, name varchar(255) ) ENGINE=InnoDB;");
+                "CREATE TABLE aggregate(fid serial PRIMARY KEY, id integer, "
+                        + "geom ST_POLYGON, name varchar(255) );");
 
         run(
                 "INSERT INTO aggregate (id,geom,name) VALUES ( 0,"
-                        + "GeomFromText('POLYGON((12 6, 14 8, 16 6, 16 4, 14 4, 12 6))',4326),"
+                        + "ST_GeomFromText('POLYGON((12 6, 14 8, 16 6, 16 4, 14 4, 12 6))',0)::ST_Polygon,"
                         + "'muddy1')");
         run(
                 "INSERT INTO aggregate (id,geom,name) VALUES ( 1,"
-                        + "GeomFromText('POLYGON((12 6, 14 8, 16 6, 16 4, 14 4, 12 6))',4326),"
+                        + "ST_GeomFromText('POLYGON((12 6, 14 8, 16 6, 16 4, 14 4, 12 6))',0)::ST_Polygon,"
                         + "'muddy1')");
         run(
                 "INSERT INTO aggregate (id,geom,name) VALUES ( 2,"
-                        + "GeomFromText('POLYGON((12 6, 14 8, 16 6, 16 4, 14 4, 12 6))',4326),"
+                        + "ST_GeomFromText('POLYGON((12 6, 14 8, 16 6, 16 4, 14 4, 12 6))',0)::ST_Polygon,"
                         + "'muddy2')");
     }
 
