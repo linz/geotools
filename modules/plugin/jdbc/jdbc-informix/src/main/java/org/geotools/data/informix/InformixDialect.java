@@ -49,8 +49,8 @@ import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
 /**
- * Delegate for {@link InformixDialectBasic} and {@link InformixDialectPrepared} which implements the
- * common part of the api.
+ * Delegate for {@link InformixDialectBasic} and {@link InformixDialectPrepared} which implements
+ * the common part of the api.
  *
  * @author Justin Deoliveira, OpenGEO
  */
@@ -290,9 +290,7 @@ public class InformixDialect extends SQLDialect {
         overrides.put(Types.BOOLEAN, "BOOL");
     }
 
-    public void encodePostCreateTable(String tableName, StringBuffer sql) {
-
-    }
+    public void encodePostCreateTable(String tableName, StringBuffer sql) {}
 
     @Override
     public void encodePostColumnCreateTable(AttributeDescriptor att, StringBuffer sql) {

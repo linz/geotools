@@ -18,7 +18,6 @@ package org.geotools.data.informix;
 
 import static org.geotools.data.informix.InformixDataStoreFactory.*;
 
-import java.util.Map;
 import org.geotools.jdbc.JDBCJNDIDataStoreFactory;
 
 /**
@@ -31,5 +30,4 @@ public class InformixJNDIDataStoreFactory extends JDBCJNDIDataStoreFactory {
     public InformixJNDIDataStoreFactory() {
         super(new InformixDataStoreFactory());
     }
-
 }
