@@ -194,8 +194,8 @@ public class InformixDialectBasic extends BasicSQLDialect {
 
     @Override
     public void encodeGeometryEnvelope(String tableName, String geometryColumn, StringBuffer sql) {
-        sql.append("ST_AsWKB(");
-        sql.append("ST_envelope(");
+        sql.append("ST_AsBinary(");
+        sql.append("ST_Envelope(");
 
         encodeColumnName(null, geometryColumn, sql);
         sql.append("))");

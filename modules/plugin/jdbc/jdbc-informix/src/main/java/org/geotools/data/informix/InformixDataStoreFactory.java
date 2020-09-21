@@ -37,7 +37,7 @@ public class InformixDataStoreFactory extends JDBCDataStoreFactory {
                     String.class,
                     "Type",
                     true,
-                    "informix",
+                    "informix-sqli",
                     Collections.singletonMap(Parameter.LEVEL, "program"));
     /** Default port number for MYSQL */
     public static final Param PORT = new Param("port", Integer.class, "Port", true, 3306);
@@ -48,7 +48,7 @@ public class InformixDataStoreFactory extends JDBCDataStoreFactory {
     }
 
     public String getDisplayName() {
-        return "MySQL";
+        return "Informix";
     }
 
     protected String getDriverClassName() {
@@ -60,12 +60,12 @@ public class InformixDataStoreFactory extends JDBCDataStoreFactory {
     }
 
     public String getDescription() {
-        return "MySQL Database";
+        return "Informix Database";
     }
 
     @Override
     protected String getValidationQuery() {
-        return "select version()";
+        return "SELECT DBINFO('version','full') FROM systables WHERE tabid = 1";
     }
 
     @Override
