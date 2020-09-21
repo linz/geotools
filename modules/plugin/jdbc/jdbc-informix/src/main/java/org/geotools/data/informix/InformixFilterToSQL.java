@@ -76,7 +76,7 @@ public class InformixFilterToSQL extends FilterToSQL {
             // WKT does not support linear rings
             g = g.getFactory().createLineString(((LinearRing) g).getCoordinateSequence());
         }
-        out.write("GeomFromText('" + g.toText() + "', " + currentSRID + ")");
+        out.write("ST_GeomFromText('" + g.toText() + "', " + currentSRID + ")");
     }
 
     @Override
@@ -87,104 +87,14 @@ public class InformixFilterToSQL extends FilterToSQL {
             boolean swapped,
             Object extraData) {
 
-        if (usePreciseSpatialOps) {
-            return visitBinarySpatialOperatorEnhanced(
-                    filter, (Expression) property, (Expression) geometry, swapped, extraData);
-        } else {
-            return visitBinarySpatialOperator(
-                    filter, (Expression) property, (Expression) geometry, swapped, extraData);
-        }
+        return visitBinarySpatialOperatorEnhanced(
+                filter, (Expression) property, (Expression) geometry, swapped, extraData);
     }
 
     @Override
     protected Object visitBinarySpatialOperator(
             BinarySpatialOperator filter, Expression e1, Expression e2, Object extraData) {
-        if (usePreciseSpatialOps) {
-            return visitBinarySpatialOperatorEnhanced(filter, e1, e2, false, extraData);
-        } else {
-            return visitBinarySpatialOperator(filter, e1, e2, false, extraData);
-        }
-    }
-
-    protected Object visitBinarySpatialOperator(
-            BinarySpatialOperator filter,
-            Expression e1,
-            Expression e2,
-            boolean swapped,
-            Object extraData) {
-
-        try {
-
-            if (!(filter instanceof Disjoint)) {
-                out.write("MbrIntersects(");
-                e1.accept(this, extraData);
-                out.write(",");
-                e2.accept(this, extraData);
-                out.write(")");
-
-                if (!(filter instanceof BBOX)) {
-                    out.write(" AND ");
-                }
-            }
-
-            if (filter instanceof BBOX) {
-                // nothing to do. already encoded above
-                return extraData;
-            }
-
-            if (filter instanceof DistanceBufferOperator) {
-                out.write("Distance(");
-                e1.accept(this, extraData);
-                out.write(", ");
-                e2.accept(this, extraData);
-                out.write(")");
-
-                if (filter instanceof DWithin) {
-                    out.write("<");
-                } else if (filter instanceof Beyond) {
-                    out.write(">");
-                } else {
-                    throw new RuntimeException("Unknown distance operator");
-                }
-                out.write(Double.toString(((DistanceBufferOperator) filter).getDistance()));
-            } else if (!(filter instanceof BBOX)) {
-                if (filter instanceof Contains) {
-                    out.write("Contains(");
-                } else if (filter instanceof Crosses) {
-                    out.write("Crosses(");
-                } else if (filter instanceof Disjoint) {
-                    out.write("Disjoint(");
-                } else if (filter instanceof Equals) {
-                    out.write("Equals(");
-                } else if (filter instanceof Intersects) {
-                    out.write("Intersects(");
-                } else if (filter instanceof Overlaps) {
-                    out.write("Overlaps(");
-                } else if (filter instanceof Touches) {
-                    out.write("Touches(");
-                } else if (filter instanceof Within) {
-                    out.write("Within(");
-                } else {
-                    throw new RuntimeException("Unknown operator: " + filter);
-                }
-
-                if (swapped) {
-                    e2.accept(this, extraData);
-                    out.write(", ");
-                    e1.accept(this, extraData);
-                } else {
-                    e1.accept(this, extraData);
-                    out.write(", ");
-                    e2.accept(this, extraData);
-                }
-
-                out.write(")");
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        return extraData;
+        return visitBinarySpatialOperatorEnhanced(filter, e1, e2, false, extraData);
     }
 
     /** supported if version of MySQL is at least 5.6. */
@@ -213,7 +123,7 @@ public class InformixFilterToSQL extends FilterToSQL {
                 }
                 out.write(Double.toString(((DistanceBufferOperator) filter).getDistance()));
             } else if (filter instanceof BBOX) {
-                out.write("MbrIntersects(");
+                out.write("SE_EnvelopesIntersect(");
                 e1.accept(this, extraData);
                 out.write(",");
                 e2.accept(this, extraData);
