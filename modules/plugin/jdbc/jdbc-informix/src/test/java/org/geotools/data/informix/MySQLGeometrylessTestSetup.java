@@ -27,8 +27,8 @@ public class MySQLGeometrylessTestSetup extends JDBCGeometrylessTestSetup {
     @Override
     protected void createPersonTable() throws Exception {
         run(
-                "CREATE TABLE person(fid int AUTO_INCREMENT PRIMARY KEY, id int, "
-                        + "name varchar(255), age int)");
+                "CREATE TABLE person(fid serial PRIMARY KEY, id integer, "
+                        + "name varchar(255), age integer)");
         run("INSERT INTO person (id,name,age) VALUES (0,'Paul',32)");
         run("INSERT INTO person (id,name,age) VALUES (0,'Anne',40)");
     }

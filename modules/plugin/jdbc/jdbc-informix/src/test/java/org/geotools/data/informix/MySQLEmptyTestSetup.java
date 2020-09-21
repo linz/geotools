@@ -26,7 +26,7 @@ public class MySQLEmptyTestSetup extends JDBCEmptyTestSetup {
 
     @Override
     protected void createEmptyTable() throws Exception {
-        run("CREATE TABLE empty (id int, geom GEOMETRY) ");
+        run("CREATE TABLE empty (id int, geom ST_GEOMETRY) ");
     }
 
     @Override
