@@ -462,12 +462,12 @@ public class InformixDialect extends SQLDialect {
     @Override
     public void applyLimitOffset(StringBuffer sql, int limit, int offset) {
         if (limit >= 0 && limit < Integer.MAX_VALUE) {
-            if (offset > 0) sql.append(" LIMIT " + offset + ", " + limit);
+            if (offset > 0) sql.append(" LIMIT " + limit + " SKIP " + offset);
             else sql.append(" LIMIT " + limit);
         } else if (offset > 0) {
-            // MySql pretends to have limit specified along with offset
-            sql.append(" LIMIT " + offset + ", " + Long.MAX_VALUE);
+            sql.append(" SKIP " + offset);
         }
+        System.out.println(sql);
     }
 
     @Override
