@@ -30,18 +30,18 @@ public class MySQLDataStoreAPITestSetup extends JDBCDataStoreAPITestSetup {
     protected void createRoadTable() throws Exception {
         run(
                 "CREATE TABLE road(fid serial PRIMARY KEY, id integer, "
-                        + "geom ST_LINESTRING, name varchar(255) );");
+                        + "geom ST_GEOMETRY, name varchar(255) );");
         run(
                 "INSERT INTO road (id,geom,name) VALUES (0,"
-                        + "St_GeomFromText('LINESTRING(1 1, 2 2, 4 2, 5 1)',0)::ST_Linestring,"
+                        + "St_GeomFromText('LINESTRING(1 1, 2 2, 4 2, 5 1)',0),"
                         + "'r1')");
         run(
                 "INSERT INTO road (id,geom,name) VALUES ( 1,"
-                        + "St_GeomFromText('LINESTRING(3 0, 3 2, 3 3, 3 4)',0)::ST_Linestring,"
+                        + "St_GeomFromText('LINESTRING(3 0, 3 2, 3 3, 3 4)',0),"
                         + "'r2')");
         run(
                 "INSERT INTO road (id,geom,name) VALUES ( 2,"
-                        + "St_GeomFromText('LINESTRING(3 2, 4 2, 5 3)',0)::ST_Linestring,"
+                        + "St_GeomFromText('LINESTRING(3 2, 4 2, 5 3)',0),"
                         + "'r3')");
     }
 
