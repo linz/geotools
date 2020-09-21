@@ -75,18 +75,23 @@ public class MySQLTestSetup extends JDBCTestSetup {
 
         sb = new StringBuffer();
         sb.append("INSERT INTO ft1 VALUES (")
-                .append("0,ST_GeomFromText('POINT(0 0)',0)::ST_Point, 0, 0.0,'zero');");
+                .append("0,ST_GeomFromText('POINT(0 0)',1)::ST_Point, 0, 0.0,'zero');");
         run(sb.toString());
 
         sb = new StringBuffer();
         sb.append("INSERT INTO ft1 VALUES (")
-                .append("1,ST_GeomFromText('POINT(1 1)',0)::ST_Point, 1, 1.1,'one');");
+                .append("1,ST_GeomFromText('POINT(1 1)',1)::ST_Point, 1, 1.1,'one');");
         run(sb.toString());
 
         sb = new StringBuffer();
         sb.append("INSERT INTO ft1 VALUES (")
-                .append("2,ST_GeomFromText('POINT(2 2)',0)::ST_Point, 2, 2.2,'two');");
+                .append("2,ST_GeomFromText('POINT(2 2)',1)::ST_Point, 2, 2.2,'two');");
         run(sb.toString());
+    }
+    
+    @Override
+    protected String attributeName(String raw) {
+    	return super.attributeName(raw.toLowerCase());
     }
 
     @Override
