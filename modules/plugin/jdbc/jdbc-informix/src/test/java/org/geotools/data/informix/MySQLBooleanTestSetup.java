@@ -33,7 +33,7 @@ public class MySQLBooleanTestSetup extends JDBCBooleanTestSetup {
 
     @Override
     protected void createBooleanTable() throws Exception {
-		run("CREATE TABLE b (id serial PRIMARY KEY, boolProperty BOOLEAN)");
+        run("CREATE TABLE b (id serial PRIMARY KEY, boolProperty BOOLEAN)");
         run("INSERT INTO b (boolProperty) VALUES ('F')");
         run("INSERT INTO b (boolProperty) VALUES ('T')");
     }
