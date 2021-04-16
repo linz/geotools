@@ -83,31 +83,31 @@ public class InformixDialect extends SQLDialect {
 
     public String getGeometryTypeName(Integer type) {
         if (POINT.equals(type)) {
-            return "POINT";
+            return "ST_POINT";
         }
 
         if (MULTIPOINT.equals(type)) {
-            return "MULTIPOINT";
+            return "ST_MULTIPOINT";
         }
 
         if (LINESTRING.equals(type)) {
-            return "LINESTRING";
+            return "ST_LINESTRING";
         }
 
         if (MULTILINESTRING.equals(type)) {
-            return "MULTILINESTRING";
+            return "ST_MULTILINESTRING";
         }
 
         if (POLYGON.equals(type)) {
-            return "POLYGON";
+            return "ST_POLYGON";
         }
 
         if (MULTIPOLYGON.equals(type)) {
-            return "MULTIPOLYGON";
+            return "ST_MULTIPOLYGON";
         }
 
         if (GEOMETRY.equals(type)) {
-            return "GEOMETRY";
+            return "ST_GEOMETRY";
         }
 
         return super.getGeometryTypeName(type);
