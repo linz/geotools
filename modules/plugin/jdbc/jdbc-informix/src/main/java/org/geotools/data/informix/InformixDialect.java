@@ -334,7 +334,7 @@ public class InformixDialect extends SQLDialect {
 
     public void encodePrimaryKey(String column, StringBuffer sql) {
         encodeColumnName(null, column, sql);
-        sql.append(" int AUTO_INCREMENT PRIMARY KEY");
+        sql.append(" SERIAL PRIMARY KEY");
     }
 
     @Override
