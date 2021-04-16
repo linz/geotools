@@ -305,48 +305,6 @@ public class InformixDialect extends SQLDialect {
     public void postCreateTable(String schemaName, SimpleFeatureType featureType, Connection cx)
             throws SQLException, IOException {
 
-        // create teh geometry_columns table if necessary
-        DatabaseMetaData md = cx.getMetaData();
-        ResultSet rs =
-                md.getTables(
-                        null,
-                        dataStore.escapeNamePattern(md, schemaName),
-                        dataStore.escapeNamePattern(md, "geometry_columns"),
-                        new String[] {"TABLE"});
-        try {
-            if (!rs.next()) {
-                // create it
-                Statement st = cx.createStatement();
-                try {
-                    StringBuffer sql = new StringBuffer("CREATE TABLE ");
-                    encodeTableName("geometry_columns", sql);
-                    sql.append("(");
-                    encodeColumnName(null, "f_table_schema", sql);
-                    sql.append(" varchar(255), ");
-                    encodeColumnName(null, "f_table_name", sql);
-                    sql.append(" varchar(255), ");
-                    encodeColumnName(null, "f_geometry_column", sql);
-                    sql.append(" varchar(255), ");
-                    encodeColumnName(null, "coord_dimension", sql);
-                    sql.append(" int, ");
-                    encodeColumnName(null, "srid", sql);
-                    sql.append(" int, ");
-                    encodeColumnName(null, "type", sql);
-                    sql.append(" varchar(32)");
-                    sql.append(")");
-
-                    if (LOGGER.isLoggable(Level.FINE)) {
-                        LOGGER.fine(sql.toString());
-                    }
-                    st.execute(sql.toString());
-                } finally {
-                    dataStore.closeSafe(st);
-                }
-            }
-        } finally {
-            dataStore.closeSafe(rs);
-        }
-
         // create spatial index for all geometry columns
         for (AttributeDescriptor ad : featureType.getAttributeDescriptors()) {
             if (!(ad instanceof GeometryDescriptor)) {
@@ -371,51 +329,6 @@ public class InformixDialect extends SQLDialect {
                 }
             }
 
-            CoordinateReferenceSystem crs = gd.getCoordinateReferenceSystem();
-            int srid = -1;
-            if (crs != null) {
-                Integer i = null;
-                try {
-                    i = CRS.lookupEpsgCode(crs, true);
-                } catch (FactoryException e) {
-                    LOGGER.log(Level.FINER, "Could not determine epsg code", e);
-                }
-                srid = i != null ? i : srid;
-            }
-
-            StringBuffer sql = new StringBuffer("INSERT INTO ");
-            encodeTableName("geometry_columns", sql);
-            sql.append(" (");
-            encodeColumnName(null, "f_table_schema", sql);
-            sql.append(", ");
-            encodeColumnName(null, "f_table_name", sql);
-            sql.append(", ");
-            encodeColumnName(null, "f_geometry_column", sql);
-            sql.append(", ");
-            encodeColumnName(null, "coord_dimension", sql);
-            sql.append(", ");
-            encodeColumnName(null, "srid", sql);
-            sql.append(", ");
-            encodeColumnName(null, "type", sql);
-            sql.append(") ");
-            sql.append(" VALUES (");
-            sql.append(schemaName != null ? "'" + schemaName + "'" : "NULL").append(", ");
-            sql.append("'").append(featureType.getTypeName()).append("', ");
-            sql.append("'").append(ad.getLocalName()).append("', ");
-            sql.append("2, ");
-            sql.append(srid).append(", ");
-
-            Geometries g =
-                    Geometries.getForBinding((Class<? extends Geometry>) gd.getType().getBinding());
-            sql.append("'").append(g != null ? g.getName().toUpperCase() : "GEOMETRY").append("')");
-
-            LOGGER.fine(sql.toString());
-            Statement st = cx.createStatement();
-            try {
-                st.execute(sql.toString());
-            } finally {
-                dataStore.closeSafe(st);
-            }
         }
     }
 
