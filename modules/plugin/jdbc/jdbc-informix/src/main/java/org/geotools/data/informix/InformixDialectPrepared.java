@@ -212,11 +212,4 @@ public class InformixDialectPrepared extends PreparedStatementSQLDialect {
     public void applyLimitOffset(StringBuffer sql, int limit, int offset) {
         delegate.applyLimitOffset(sql, limit, offset);
     }
-
-    @Override
-    public void dropIndex(
-            Connection cx, SimpleFeatureType schema, String databaseSchema, String indexName)
-            throws SQLException {
-        delegate.dropIndex(cx, schema, databaseSchema, indexName);
-    }
 }

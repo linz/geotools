@@ -237,11 +237,4 @@ public class InformixDialectBasic extends BasicSQLDialect {
     public FilterToSQL createFilterToSQL() {
         return new InformixFilterToSQL();
     }
-
-    @Override
-    public void dropIndex(
-            Connection cx, SimpleFeatureType schema, String databaseSchema, String indexName)
-            throws SQLException {
-        delegate.dropIndex(cx, schema, databaseSchema, indexName);
-    }
 }
