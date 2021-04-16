@@ -33,11 +33,11 @@ public class InformixDataStoreFactoryTest extends TestCase {
 
         params.put(JDBCDataStoreFactory.NAMESPACE.key, "http://www.geotools.org/test");
         params.put(JDBCDataStoreFactory.DATABASE.key, "geotools");
-        params.put(JDBCDataStoreFactory.DBTYPE.key, "informix");
+        params.put(JDBCDataStoreFactory.DBTYPE.key, "informix-sqli");
 
         params.put(JDBCDataStoreFactory.HOST.key, "localhost");
-        params.put(JDBCDataStoreFactory.PORT.key, "3306");
-        params.put(JDBCDataStoreFactory.USER.key, "mysqluser");
+        params.put(JDBCDataStoreFactory.PORT.key, "9088");
+        params.put(JDBCDataStoreFactory.USER.key, "informix");
         assertTrue(factory.canProcess(params));
     }
 }

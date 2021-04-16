@@ -16,13 +16,37 @@
  */
 package org.geotools.data.informix;
 
+import org.geotools.data.FeatureReader;
+import org.geotools.data.Query;
+import org.geotools.data.Transaction;
 import org.geotools.jdbc.JDBCBooleanOnlineTest;
 import org.geotools.jdbc.JDBCBooleanTestSetup;
+import org.geotools.jdbc.JDBCTestSupport;
+import org.opengis.feature.simple.SimpleFeature;
+import org.opengis.feature.simple.SimpleFeatureType;
 
-public class MySQLBooleanOnlineTest extends JDBCBooleanOnlineTest {
+public class MySQLBooleanOnlineTest extends JDBCTestSupport {
 
     @Override
     protected JDBCBooleanTestSetup createTestSetup() {
         return new MySQLBooleanTestSetup();
+    }
+
+    public void testGetSchema() throws Exception {
+        SimpleFeatureType ft = dataStore.getSchema(tname("b"));
+        assertEquals(Boolean.class, ft.getDescriptor("boolproperty").getType().getBinding());
+    }
+
+    public void testGetFeatures() throws Exception {
+        try (FeatureReader r =
+                     dataStore.getFeatureReader(new Query(tname("b")), Transaction.AUTO_COMMIT)) {
+            r.hasNext();
+            SimpleFeature f = (SimpleFeature) r.next();
+            assertEquals(Boolean.FALSE, f.getAttribute("boolproperty"));
+
+            r.hasNext();
+            f = (SimpleFeature) r.next();
+            assertEquals(Boolean.TRUE, f.getAttribute("boolproperty"));
+        }
     }
 }
