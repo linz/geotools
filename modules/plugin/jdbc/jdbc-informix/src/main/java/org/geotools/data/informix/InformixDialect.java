@@ -460,13 +460,21 @@ public class InformixDialect extends SQLDialect {
 
     @Override
     public void applyLimitOffset(StringBuffer sql, int limit, int offset) {
-        if (limit >= 0 && limit < Integer.MAX_VALUE) {
-            if (offset > 0) sql.append(" LIMIT " + limit + " SKIP " + offset);
-            else sql.append(" LIMIT " + limit);
-        } else if (offset > 0) {
-            sql.append(" SKIP " + offset);
+        // Note: The syntax of LIMIT and SKIP in Informix is stricter inside a subquery than in other contexts. SKIP
+        // must precede FIRST (no LIMIT) and these must be immediately after SELECT.
+        if (!sql.toString().startsWith("SELECT")) {
+            throw new IllegalArgumentException("Cannot apply limit to a query that does not begin with SELECT");
         }
-        System.out.println(sql);
+
+        String limitSql = null;
+        if (limit >= 0 && limit < Integer.MAX_VALUE) {
+            if (offset > 0) limitSql = " SKIP " + offset + " FIRST " + limit;
+            else limitSql = " FIRST " + limit;
+        } else if (offset > 0) {
+            limitSql = " SKIP " + offset;
+        }
+
+        sql.insert("SELECT".length(), limitSql);
     }
 
     @Override
