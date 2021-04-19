@@ -375,8 +375,9 @@ public class InformixDialect extends SQLDialect {
     public void applyLimitOffset(StringBuffer sql, int limit, int offset) {
         // Note: The syntax of LIMIT and SKIP in Informix is stricter inside a subquery than in other contexts. SKIP
         // must precede FIRST (no LIMIT) and these must be immediately after SELECT.
-        if (!sql.toString().startsWith("SELECT")) {
-            throw new IllegalArgumentException("Cannot apply limit to a query that does not begin with SELECT");
+        int selectIndex = sql.indexOf("SELECT");
+        if (selectIndex < 0) {
+            throw new IllegalArgumentException("Cannot apply limit to a query that does not include SELECT");
         }
 
         String limitSql = null;
@@ -387,7 +388,7 @@ public class InformixDialect extends SQLDialect {
             limitSql = " SKIP " + offset;
         }
 
-        sql.insert("SELECT".length(), limitSql);
+        sql.insert(selectIndex + "SELECT".length(), limitSql);
     }
 
 }
