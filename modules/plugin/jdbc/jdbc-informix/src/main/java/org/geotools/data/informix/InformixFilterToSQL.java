@@ -17,11 +17,7 @@
 package org.geotools.data.informix;
 
 import java.io.IOException;
-import java.sql.Time;
-import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-
 import org.geotools.data.jdbc.FilterToSQL;
 import org.geotools.filter.FilterCapabilities;
 import org.locationtech.jts.geom.Geometry;
@@ -176,12 +172,13 @@ public class InformixFilterToSQL extends FilterToSQL {
 
     @Override
     protected void writeLiteral(Object literal) throws IOException {
-        if (literal instanceof Timestamp) {
-            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            out.write("to_date('" + format.format(literal) + "', '%Y-%m-%d %H:%M:%S')");
-        } else if (literal instanceof Time) {
+        LOGGER.info("Writing literal of type " + literal.getClass().getName());
+        if (literal instanceof java.sql.Time) {
             SimpleDateFormat format = new SimpleDateFormat("HH:mm:ss");
             out.write("'" + format.format(literal) + "'");
+        } else if (literal instanceof java.util.Date) { // includes java.sql.Timestamp
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            out.write("to_date('" + format.format(literal) + "', '%Y-%m-%d %H:%M:%S')");
         } else {
             super.writeLiteral(literal);
         }
