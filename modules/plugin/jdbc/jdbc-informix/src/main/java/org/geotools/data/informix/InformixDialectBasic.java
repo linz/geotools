@@ -28,6 +28,12 @@ import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.MultiLineString;
+import org.locationtech.jts.geom.MultiPoint;
+import org.locationtech.jts.geom.MultiPolygon;
+import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.io.WKBReader;
 import org.locationtech.jts.io.WKTWriter;
@@ -162,12 +168,31 @@ public class InformixDialectBasic extends BasicSQLDialect {
     public void encodeGeometryValue(Geometry value, int dimension, int srid, StringBuffer sql)
             throws IOException {
         if (value != null) {
-            sql.append("ST_GeomFromText('");
+            String fromText = fromTextFunctionName(value);
+            sql.append(fromText + "('");
             sql.append(new WKTWriter().write(value));
             sql.append("', ").append(srid).append(")");
         } else {
             sql.append("NULL");
         }
+    }
+
+    // https://www.cursor-distribution.de/aktuell.12.10.xC6/documentation/ids_spat_bookmap.pdf
+    private String fromTextFunctionName(Geometry value) {
+        if (value instanceof Point) {
+            return "ST_PointFromText";
+        } else if (value instanceof LineString) {
+            return "ST_LineFromText";
+        } else if (value instanceof Polygon) {
+            return "ST_PolyFromText";
+        } else if (value instanceof MultiPoint) {
+            return "ST_MPointFromText";
+        } else if (value instanceof MultiLineString) {
+            return "ST_MLineFromText";
+        } else if (value instanceof MultiPolygon) {
+            return "ST_MPolyFromText";
+        }
+        return "ST_GeomFromText";
     }
 
     @Override
