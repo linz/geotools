@@ -172,7 +172,7 @@ public class InformixFilterToSQL extends FilterToSQL {
 
     @Override
     protected void writeLiteral(Object literal) throws IOException {
-        LOGGER.info("Writing literal of type " + literal.getClass().getName());
+        LOGGER.fine("Writing literal of type " + literal.getClass().getName());
         if (literal instanceof java.sql.Time) {
             SimpleDateFormat format = new SimpleDateFormat("HH:mm:ss");
             out.write("'" + format.format(literal) + "'");
