@@ -22,6 +22,7 @@ import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.Map;
 import java.util.logging.Level;
 import org.geotools.geometry.jts.Geometries;
@@ -54,16 +55,6 @@ import org.opengis.referencing.crs.CoordinateReferenceSystem;
  * @author Justin Deoliveira, OpenGEO
  */
 public class InformixDialect extends SQLDialect {
-    /** mysql spatial types */
-    protected Integer POINT = Integer.valueOf(2001);
-
-    protected Integer LINESTRING = Integer.valueOf(2002);
-    protected Integer POLYGON = Integer.valueOf(2003);
-    protected Integer MULTIPOINT = Integer.valueOf(2004);
-    protected Integer MULTILINESTRING = Integer.valueOf(2005);
-    protected Integer MULTIPOLYGON = Integer.valueOf(2006);
-    protected Integer GEOMETRY = Integer.valueOf(2007);
-
     public InformixDialect(JDBCDataStore dataStore) {
         super(dataStore);
     }
@@ -82,35 +73,8 @@ public class InformixDialect extends SQLDialect {
     }
 
     public String getGeometryTypeName(Integer type) {
-        if (POINT.equals(type)) {
-            return "ST_POINT";
-        }
-
-        if (MULTIPOINT.equals(type)) {
-            return "ST_MULTIPOINT";
-        }
-
-        if (LINESTRING.equals(type)) {
-            return "ST_LINESTRING";
-        }
-
-        if (MULTILINESTRING.equals(type)) {
-            return "ST_MULTILINESTRING";
-        }
-
-        if (POLYGON.equals(type)) {
-            return "ST_POLYGON";
-        }
-
-        if (MULTIPOLYGON.equals(type)) {
-            return "ST_MULTIPOLYGON";
-        }
-
-        if (GEOMETRY.equals(type)) {
-            return "ST_GEOMETRY";
-        }
-
-        return super.getGeometryTypeName(type);
+        LOGGER.info("getGeometryTypeName " + type);
+        return "st_geometry";
     }
 
     public Integer getGeometrySRID(
@@ -249,27 +213,30 @@ public class InformixDialect extends SQLDialect {
 
     public void registerClassToSqlMappings(Map<Class<?>, Integer> mappings) {
         super.registerClassToSqlMappings(mappings);
-
-        mappings.put(Point.class, POINT);
-        mappings.put(LineString.class, LINESTRING);
-        mappings.put(Polygon.class, POLYGON);
-        mappings.put(MultiPoint.class, MULTIPOINT);
-        mappings.put(MultiLineString.class, MULTILINESTRING);
-        mappings.put(MultiPolygon.class, MULTIPOLYGON);
-        mappings.put(Geometry.class, GEOMETRY);
+        mappings.put(Geometry.class, Types.OTHER);
     }
 
-    //	public void registerSqlTypeToClassMappings(Map<Integer, Class<?>> mappings) {
-    //		super.registerSqlTypeToClassMappings(mappings);
-    //
-    //		mappings.put(POINT, Point.class);
-    //		mappings.put(LINESTRING, LineString.class);
-    //		mappings.put(POLYGON, Polygon.class);
-    //		mappings.put(MULTIPOINT, MultiPoint.class);
-    //		mappings.put(MULTILINESTRING, MultiLineString.class);
-    //		mappings.put(MULTIPOLYGON, MultiPolygon.class);
-    //		mappings.put(GEOMETRY, Geometry.class);
-    //	}
+    /**
+     * Return the geometry type ID to be stored in the geometry_columns table for a particular class
+     */
+    private int getGeometryTypeNumber(String className) {
+        if (className.equals(Point.class.getSimpleName())) {
+            return 1;
+        } else if (className.equals(LineString.class.getSimpleName())) {
+            return 3;
+        } else if (className.equals(Polygon.class.getSimpleName())) {
+            return 5;
+        } else if (className.equals(MultiPoint.class.getSimpleName())) {
+            return 7;
+        } else if (className.equals(MultiLineString.class.getSimpleName())) {
+            return 9;
+        } else if (className.equals(MultiPolygon.class.getSimpleName())) {
+            return 11;
+        } else if (className.equals(GeometryCollection.class.getSimpleName())) {
+            return 6;
+        }
+        return 0; // Geometry
+    }
 
     public void registerSqlTypeNameToClassMappings(Map<String, Class<?>> mappings) {
         super.registerSqlTypeNameToClassMappings(mappings);
@@ -328,6 +295,46 @@ public class InformixDialect extends SQLDialect {
                     dataStore.closeSafe(st);
                 }
             }
+
+            CoordinateReferenceSystem crs = gd.getCoordinateReferenceSystem();
+            int srid = -1;
+            if (crs != null) {
+                Integer i = null;
+                try {
+                    i = CRS.lookupEpsgCode(crs, true);
+                } catch (FactoryException e) {
+                    LOGGER.log(Level.FINER, "Could not determine epsg code", e);
+                }
+                srid = i != null ? i : srid;
+            }
+
+            // This code does not seem to be needed by any of the tests, but it is present for all the other datasource
+            // plugins so we have adapted it for Informix and retained it.
+            StringBuffer sql = new StringBuffer("INSERT INTO geometry_columns ");
+            sql.append("(f_table_catalog, f_table_schema, f_table_name, f_geometry_column, coord_dimension, srid, geometry_type)");
+            sql.append(" VALUES (");
+            sql.append("DBINFO('dbname'), ");
+            // Per the IBM Informix Spatial Data User's Guide, the value of f_table_schema should be the DB owner name.
+            sql.append("'" + cx.getMetaData().getUserName() + "'").append(", ");
+            sql.append("'").append(featureType.getTypeName()).append("', ");
+            sql.append("'").append(ad.getLocalName()).append("', ");
+            sql.append("2, ");
+            sql.append(srid).append(", ");
+            String typeName = ad.getType().getBinding().getSimpleName();
+            int typeNumber = getGeometryTypeNumber(typeName);
+
+            sql.append(typeNumber);
+            sql.append(")");
+
+            LOGGER.fine(sql.toString());
+            Statement st = cx.createStatement();
+            try {
+                st.execute(sql.toString());
+            } finally {
+                dataStore.closeSafe(st);
+            }
+
+
 
         }
     }

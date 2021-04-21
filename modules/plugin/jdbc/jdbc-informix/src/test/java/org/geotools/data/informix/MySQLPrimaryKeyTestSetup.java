@@ -40,8 +40,7 @@ public class MySQLPrimaryKeyTestSetup extends JDBCPrimaryKeyTestSetup {
 
     @Override
     protected void createNonIncrementingPrimaryKeyTable() throws Exception {
-        run("CREATE TABLE noninc ( pkey int PRIMARY KEY, " + "name VARCHAR(255), geom ST_GEOMETRY)");
-
+        run("CREATE TABLE noninc ( pkey int PRIMARY KEY, name VARCHAR(255), geom ST_GEOMETRY)");
         run("INSERT INTO noninc VALUES (1, 'one', NULL)");
         run("INSERT INTO noninc VALUES (2, 'two', NULL)");
         run("INSERT INTO noninc VALUES (3, 'three', NULL)");
