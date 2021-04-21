@@ -38,7 +38,7 @@ public class MySQLPrimaryKeyFinderTestSetup extends JDBCPrimaryKeyFinderTestSetu
 
     @Override
     protected void createPlainTable() throws Exception {
-        run("CREATE TABLE plaintable (key1 int, key2 int, name varchar(255), geom GEOMETRY)");
+        run("CREATE TABLE plaintable (key1 int, key2 int, name varchar(255), geom ST_GEOMETRY)");
         run("INSERT INTO plaintable VALUES (1, 2, 'one', NULL)");
         run("INSERT INTO plaintable VALUES (2, 3, 'two', NULL)");
         run("INSERT INTO plaintable VALUES (3, 4, 'three', NULL)");
