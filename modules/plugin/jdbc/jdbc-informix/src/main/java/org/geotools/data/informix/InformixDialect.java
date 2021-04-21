@@ -54,16 +54,6 @@ import org.opengis.referencing.crs.CoordinateReferenceSystem;
  * @author Justin Deoliveira, OpenGEO
  */
 public class InformixDialect extends SQLDialect {
-    /** mysql spatial types */
-    protected Integer POINT = Integer.valueOf(2001);
-
-    protected Integer LINESTRING = Integer.valueOf(2002);
-    protected Integer POLYGON = Integer.valueOf(2003);
-    protected Integer MULTIPOINT = Integer.valueOf(2004);
-    protected Integer MULTILINESTRING = Integer.valueOf(2005);
-    protected Integer MULTIPOLYGON = Integer.valueOf(2006);
-    protected Integer GEOMETRY = Integer.valueOf(2007);
-
     public InformixDialect(JDBCDataStore dataStore) {
         super(dataStore);
     }
@@ -82,35 +72,8 @@ public class InformixDialect extends SQLDialect {
     }
 
     public String getGeometryTypeName(Integer type) {
-        if (POINT.equals(type)) {
-            return "ST_POINT";
-        }
-
-        if (MULTIPOINT.equals(type)) {
-            return "ST_MULTIPOINT";
-        }
-
-        if (LINESTRING.equals(type)) {
-            return "ST_LINESTRING";
-        }
-
-        if (MULTILINESTRING.equals(type)) {
-            return "ST_MULTILINESTRING";
-        }
-
-        if (POLYGON.equals(type)) {
-            return "ST_POLYGON";
-        }
-
-        if (MULTIPOLYGON.equals(type)) {
-            return "ST_MULTIPOLYGON";
-        }
-
-        if (GEOMETRY.equals(type)) {
-            return "ST_GEOMETRY";
-        }
-
-        return super.getGeometryTypeName(type);
+        LOGGER.info("getGeometryTypeName " + type);
+        return "st_geometry";
     }
 
     public Integer getGeometrySRID(
@@ -249,27 +212,30 @@ public class InformixDialect extends SQLDialect {
 
     public void registerClassToSqlMappings(Map<Class<?>, Integer> mappings) {
         super.registerClassToSqlMappings(mappings);
-
-        mappings.put(Point.class, POINT);
-        mappings.put(LineString.class, LINESTRING);
-        mappings.put(Polygon.class, POLYGON);
-        mappings.put(MultiPoint.class, MULTIPOINT);
-        mappings.put(MultiLineString.class, MULTILINESTRING);
-        mappings.put(MultiPolygon.class, MULTIPOLYGON);
-        mappings.put(Geometry.class, GEOMETRY);
+        mappings.put(Geometry.class, Types.OTHER);
     }
 
-    //	public void registerSqlTypeToClassMappings(Map<Integer, Class<?>> mappings) {
-    //		super.registerSqlTypeToClassMappings(mappings);
-    //
-    //		mappings.put(POINT, Point.class);
-    //		mappings.put(LINESTRING, LineString.class);
-    //		mappings.put(POLYGON, Polygon.class);
-    //		mappings.put(MULTIPOINT, MultiPoint.class);
-    //		mappings.put(MULTILINESTRING, MultiLineString.class);
-    //		mappings.put(MULTIPOLYGON, MultiPolygon.class);
-    //		mappings.put(GEOMETRY, Geometry.class);
-    //	}
+    /**
+     * Return the geometry type ID to be stored in the geometry_columns table for a particular class
+     */
+    private int getGeometryTypeNumber(Geometry value) {
+        if (value instanceof Point) {
+            return 1;
+        } else if (value instanceof LineString) {
+            return 3;
+        } else if (value instanceof Polygon) {
+            return 5;
+        } else if (value instanceof MultiPoint) {
+            return 7;
+        } else if (value instanceof MultiLineString) {
+            return 9;
+        } else if (value instanceof MultiPolygon) {
+            return 11;
+        } else if (value instanceof GeometryCollection) {
+            return 6;
+        }
+        return 0; // Geometry
+    }
 
     public void registerSqlTypeNameToClassMappings(Map<String, Class<?>> mappings) {
         super.registerSqlTypeNameToClassMappings(mappings);
