@@ -30,6 +30,6 @@ public class MySQLInEncodingOnlineTest extends JDBCInEncodingOnlineTest {
 
     @Override
     public void testGreater() throws IOException {
-        // Informix cannot handle this "odd" case
+        // Skip - Informix cannot handle this "odd" case
     }
 }
