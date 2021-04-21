@@ -46,12 +46,15 @@ public class MySQLTestSetup extends JDBCTestSetup {
         //        run("SET GLOBAL sql_mode=(SELECT REPLACE(@@sql_mode,'NO_ZERO_IN_DATE',''));");
         //        run("SET GLOBAL sql_mode=(SELECT REPLACE(@@sql_mode,'NO_ZERO_DATE',''));");
 
-        run("delete from spatial_references where srid = 26713");
-        run("insert into spatial_references " +
+        try {
+            run("insert into spatial_references " +
                 "(srid, description, auth_name, auth_srid, falsex, falsey, xyunits, falsez, zunits, falsem, munits, " +
                 "srtext) values " +
                 "(26713, 'NAD27 / UTM zone 13N (for GeoTools tests)', 'EPSG', 26713, 0, 0, 1000, 0, 1000, 0, 1000, " +
                 "'PROJCS')");
+        } catch (Exception e) {
+            //            e.printStackTrace();
+        }
 
         // drop old data
         try {

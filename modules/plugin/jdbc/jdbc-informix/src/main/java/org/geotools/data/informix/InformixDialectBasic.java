@@ -171,6 +171,10 @@ public class InformixDialectBasic extends BasicSQLDialect {
             String fromText = fromTextFunctionName(value);
             sql.append(fromText + "('");
             sql.append(new WKTWriter().write(value));
+            if (srid == -1) {
+                LOGGER.warning("SRID -1 is not supported, using 0");
+                srid = 0;
+            }
             sql.append("', ").append(srid).append(")");
         } else {
             sql.append("NULL");

@@ -22,6 +22,7 @@ import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.Map;
 import java.util.logging.Level;
 import org.geotools.geometry.jts.Geometries;
@@ -218,20 +219,20 @@ public class InformixDialect extends SQLDialect {
     /**
      * Return the geometry type ID to be stored in the geometry_columns table for a particular class
      */
-    private int getGeometryTypeNumber(Geometry value) {
-        if (value instanceof Point) {
+    private int getGeometryTypeNumber(String className) {
+        if (className.equals(Point.class.getSimpleName())) {
             return 1;
-        } else if (value instanceof LineString) {
+        } else if (className.equals(LineString.class.getSimpleName())) {
             return 3;
-        } else if (value instanceof Polygon) {
+        } else if (className.equals(Polygon.class.getSimpleName())) {
             return 5;
-        } else if (value instanceof MultiPoint) {
+        } else if (className.equals(MultiPoint.class.getSimpleName())) {
             return 7;
-        } else if (value instanceof MultiLineString) {
+        } else if (className.equals(MultiLineString.class.getSimpleName())) {
             return 9;
-        } else if (value instanceof MultiPolygon) {
+        } else if (className.equals(MultiPolygon.class.getSimpleName())) {
             return 11;
-        } else if (value instanceof GeometryCollection) {
+        } else if (className.equals(GeometryCollection.class.getSimpleName())) {
             return 6;
         }
         return 0; // Geometry
@@ -294,6 +295,46 @@ public class InformixDialect extends SQLDialect {
                     dataStore.closeSafe(st);
                 }
             }
+
+            CoordinateReferenceSystem crs = gd.getCoordinateReferenceSystem();
+            int srid = -1;
+            if (crs != null) {
+                Integer i = null;
+                try {
+                    i = CRS.lookupEpsgCode(crs, true);
+                } catch (FactoryException e) {
+                    LOGGER.log(Level.FINER, "Could not determine epsg code", e);
+                }
+                srid = i != null ? i : srid;
+            }
+
+            // This code does not seem to be needed by any of the tests, but it is present for all the other datasource
+            // plugins so we have adapted it for Informix and retained it.
+            StringBuffer sql = new StringBuffer("INSERT INTO geometry_columns ");
+            sql.append("(f_table_catalog, f_table_schema, f_table_name, f_geometry_column, coord_dimension, srid, geometry_type)");
+            sql.append(" VALUES (");
+            sql.append("DBINFO('dbname'), ");
+            // Per the IBM Informix Spatial Data User's Guide, the value of f_table_schema should be the DB owner name.
+            sql.append("'" + cx.getMetaData().getUserName() + "'").append(", ");
+            sql.append("'").append(featureType.getTypeName()).append("', ");
+            sql.append("'").append(ad.getLocalName()).append("', ");
+            sql.append("2, ");
+            sql.append(srid).append(", ");
+            String typeName = ad.getType().getBinding().getSimpleName();
+            int typeNumber = getGeometryTypeNumber(typeName);
+
+            sql.append(typeNumber);
+            sql.append(")");
+
+            LOGGER.fine(sql.toString());
+            Statement st = cx.createStatement();
+            try {
+                st.execute(sql.toString());
+            } finally {
+                dataStore.closeSafe(st);
+            }
+
+
 
         }
     }
