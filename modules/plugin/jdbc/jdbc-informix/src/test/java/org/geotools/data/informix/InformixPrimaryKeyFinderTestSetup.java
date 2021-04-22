@@ -80,7 +80,7 @@ public class InformixPrimaryKeyFinderTestSetup extends JDBCPrimaryKeyFinderTestS
 
     @Override
     protected void createSequencedPrimaryKeyTable() throws Exception {
-        // MySQL does not have sequences
+        // Skip - sequences are not implemented in this driver (SERIAL is)
     }
 
     @Override

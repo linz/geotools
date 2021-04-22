@@ -22,11 +22,6 @@ import org.geotools.jdbc.JDBCTestSetup;
 import java.io.IOException;
 import java.sql.SQLException;
 
-/**
- * FeatureStore test for MySQL.
- *
- * @author Justin Deoliveira, The Open Planning Project
- */
 public class InformixFeatureStoreOnlineTest extends JDBCFeatureStoreOnlineTest {
     protected JDBCTestSetup createTestSetup() {
         return new InformixTestSetup();

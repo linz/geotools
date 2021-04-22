@@ -36,7 +36,16 @@ public class InformixPrimaryKeyTestSetup extends JDBCPrimaryKeyTestSetup {
     }
 
     @Override
-    protected void createSequencedPrimaryKeyTable() throws Exception {}
+    protected void createSequencedPrimaryKeyTable() throws Exception {
+        run(
+                "CREATE TABLE seq (key INT PRIMARY KEY, name VARCHAR(255),"
+                        + " geom ST_GEOMETRY)");
+        run("CREATE SEQUENCE seq_key_sequence START WITH 1");
+
+        run("INSERT INTO seq VALUES (seq_key_sequence.NEXTVAL,'one',NULL)");
+        run("INSERT INTO seq VALUES (seq_key_sequence.NEXTVAL,'two',NULL)");
+        run("INSERT INTO seq VALUES (seq_key_sequence.NEXTVAL,'three',NULL)");
+    }
 
     @Override
     protected void createNonIncrementingPrimaryKeyTable() throws Exception {
@@ -93,7 +102,10 @@ public class InformixPrimaryKeyTestSetup extends JDBCPrimaryKeyTestSetup {
     }
 
     @Override
-    protected void dropSequencedPrimaryKeyTable() throws Exception {}
+    protected void dropSequencedPrimaryKeyTable() throws Exception {
+        run("DROP TABLE seq");
+        run("DROP SEQUENCE seq_key_sequence");
+    }
 
     @Override
     protected void dropNonIncrementingPrimaryKeyTable() throws Exception {

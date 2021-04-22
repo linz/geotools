@@ -22,11 +22,6 @@ import org.geotools.jdbc.JDBCDataStore;
 import org.geotools.jdbc.JDBCDataStoreFactory;
 import org.geotools.jdbc.JDBCTestSetup;
 
-/**
- * Test harness for mysql.
- *
- * @author Justin Deoliveira, The Open Planning Project
- */
 public class InformixTestSetup extends JDBCTestSetup {
 
     @Override

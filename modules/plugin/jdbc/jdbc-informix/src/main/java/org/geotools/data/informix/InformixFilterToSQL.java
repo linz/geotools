@@ -54,11 +54,10 @@ public class InformixFilterToSQL extends FilterToSQL {
 
     @Override
     protected FilterCapabilities createFilterCapabilities() {
-        // MySQL does not actually implement all of the special functions
         FilterCapabilities caps = super.createFilterCapabilities();
         caps.addType(BBOX.class);
         caps.addType(Contains.class);
-        // caps.addType(Crosses.class);
+        caps.addType(Crosses.class);
         caps.addType(Disjoint.class);
         caps.addType(Equals.class);
         caps.addType(Intersects.class);
@@ -66,7 +65,6 @@ public class InformixFilterToSQL extends FilterToSQL {
         caps.addType(Touches.class);
         caps.addType(Within.class);
         caps.addType(Beyond.class);
-
         return caps;
     }
 
@@ -98,7 +96,6 @@ public class InformixFilterToSQL extends FilterToSQL {
         return visitBinarySpatialOperatorEnhanced(filter, e1, e2, false, extraData);
     }
 
-    /** supported if version of MySQL is at least 5.6. */
     protected Object visitBinarySpatialOperatorEnhanced(
             BinarySpatialOperator filter,
             Expression e1,
@@ -123,14 +120,7 @@ public class InformixFilterToSQL extends FilterToSQL {
                     throw new RuntimeException("Unknown distance operator");
                 }
                 out.write(Double.toString(((DistanceBufferOperator) filter).getDistance()));
-            } else if (filter instanceof BBOX) {
-                out.write("SE_EnvelopesIntersect(");
-                e1.accept(this, extraData);
-                out.write(",");
-                e2.accept(this, extraData);
-                out.write(")");
             } else {
-
                 if (filter instanceof Contains) {
                     out.write("ST_Contains(");
                 } else if (filter instanceof Crosses) {
@@ -139,7 +129,7 @@ public class InformixFilterToSQL extends FilterToSQL {
                     out.write("ST_Disjoint(");
                 } else if (filter instanceof Equals) {
                     out.write("ST_Equals(");
-                } else if (filter instanceof Intersects) {
+                } else if (filter instanceof Intersects || filter instanceof BBOX) {
                     out.write("ST_Intersects(");
                 } else if (filter instanceof Overlaps) {
                     out.write("ST_Overlaps(");

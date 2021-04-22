@@ -19,11 +19,6 @@ package org.geotools.data.informix;
 import org.geotools.jdbc.JDBCFeatureCollectionOnlineTest;
 import org.geotools.jdbc.JDBCTestSetup;
 
-/**
- * SimpleFeatureCollection test for MySQL.
- *
- * @author Justin Deoliveira, The Open Planning Project
- */
 public class InformixFeatureCollectionOnlineTest extends JDBCFeatureCollectionOnlineTest {
     protected JDBCTestSetup createTestSetup() {
         return new InformixTestSetup();

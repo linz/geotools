@@ -16,10 +16,11 @@
  */
 package org.geotools.data.informix;
 
-import java.util.Map;
 import org.geotools.jdbc.JDBCDataStoreFactory;
 import org.geotools.jdbc.JDBCPrimaryKeyFinderOnlineTest;
 import org.geotools.jdbc.JDBCPrimaryKeyFinderTestSetup;
+
+import java.util.Map;
 
 public class InformixPrimaryKeyFinderOnlineTest extends JDBCPrimaryKeyFinderOnlineTest {
 
@@ -30,7 +31,7 @@ public class InformixPrimaryKeyFinderOnlineTest extends JDBCPrimaryKeyFinderOnli
 
     @Override
     public void testSequencedPrimaryKey() throws Exception {
-        // MySQL does not do sequences
+        // Skip - sequences are not implemented in this driver (SERIAL is)
     }
 
     @Override

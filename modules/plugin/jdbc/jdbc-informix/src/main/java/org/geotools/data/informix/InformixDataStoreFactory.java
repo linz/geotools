@@ -24,10 +24,10 @@ import org.geotools.jdbc.JDBCDataStoreFactory;
 import org.geotools.jdbc.SQLDialect;
 
 /**
- * DataStoreFactory for MySQL database.
+ * DataStoreFactory for Informix database.
  *
- * @author David Winslow, The Open Planning Project
- * @author Nikolaos Pringouris <nprigour@gmail.com> added support for MySQL versions 5.6 (and above)
+ * @author George Dewar, Land Information New Zealand
+ * @author Ines Falcao, Land Information New Zealand
  */
 public class InformixDataStoreFactory extends JDBCDataStoreFactory {
     /** parameter for database type */
@@ -43,7 +43,6 @@ public class InformixDataStoreFactory extends JDBCDataStoreFactory {
     public static final Param PORT = new Param("port", Integer.class, "Port", true, 3306);
 
     protected SQLDialect createSQLDialect(JDBCDataStore dataStore) {
-        // return new MySQLDialectPrepared(dataStore);
         return new InformixDialectBasic(dataStore);
     }
 

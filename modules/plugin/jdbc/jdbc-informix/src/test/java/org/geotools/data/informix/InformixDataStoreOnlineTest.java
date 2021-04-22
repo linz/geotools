@@ -19,17 +19,12 @@ package org.geotools.data.informix;
 import org.geotools.jdbc.JDBCDataStoreOnlineTest;
 import org.geotools.jdbc.JDBCTestSetup;
 
-/**
- * Data store test for mysql.
- *
- * @author Justin Deoliveira, The Open Planning Project
- */
 public class InformixDataStoreOnlineTest extends JDBCDataStoreOnlineTest {
     protected JDBCTestSetup createTestSetup() {
         return new InformixTestSetup();
     }
 
     public void testCreateSchemaWithConstraints() throws Exception {
-        // MySql does not complain if the string is too long, so we cannot run this test
+        // Informix does not complain if the string is too long, so we cannot run this test
     }
 }

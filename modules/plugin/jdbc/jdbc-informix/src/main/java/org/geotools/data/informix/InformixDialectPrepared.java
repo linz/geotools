@@ -35,9 +35,10 @@ import org.opengis.feature.type.AttributeDescriptor;
 import org.opengis.feature.type.GeometryDescriptor;
 
 /**
- * MySQL database dialect based on prepared statements.
+ * Informix database dialect based on prepared statements.
  *
- * @author Justin Deoliveira, OpenGEO
+ * @author George Dewar, Land Information New Zealand
+ * @author Ines Falcao, Land Information New Zealand
  */
 public class InformixDialectPrepared extends PreparedStatementSQLDialect {
 

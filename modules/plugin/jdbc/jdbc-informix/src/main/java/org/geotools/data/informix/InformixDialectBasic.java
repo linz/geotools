@@ -42,10 +42,10 @@ import org.opengis.feature.type.AttributeDescriptor;
 import org.opengis.feature.type.GeometryDescriptor;
 
 /**
- * MySQL database dialect based on basic (non-prepared) statements.
+ * Informix database dialect based on basic (non-prepared) statements.
  *
- * @author Justin Deoliveira, OpenGEO
- * @author Nikolaos Pringouris <nprigour@gmail.com> added support for MySQL versions 5.6 (and above)
+ * @author George Dewar, Land Information New Zealand
+ * @author Ines Falcao, Land Information New Zealand
  */
 public class InformixDialectBasic extends BasicSQLDialect {
 
@@ -236,19 +236,11 @@ public class InformixDialectBasic extends BasicSQLDialect {
         byte[] wkb = rs.getBytes(column);
 
         try {
-            /**
-             * As of MySQL 5.7.6, if the argument is a point or a vertical or horizontal line
-             * segment, ST_Envelope() returns the point or the line segment as its MBR rather than
-             * returning an invalid polygon therefore we must override behavior and check for a
-             * geometry and not a polygon
-             */
-            // TODO: srid
-            Geometry geom = (Geometry) new WKBReader().read(wkb);
-
+            Geometry geom = new WKBReader().read(wkb);
             return geom.getEnvelopeInternal();
         } catch (ParseException e) {
             String msg = "Error decoding wkb for envelope";
-            throw (IOException) new IOException(msg).initCause(e);
+            throw new IOException(msg, e);
         }
     }
 

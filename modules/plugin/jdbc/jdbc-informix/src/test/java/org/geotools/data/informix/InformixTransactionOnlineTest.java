@@ -21,11 +21,6 @@ import org.geotools.jdbc.JDBCTransactionOnlineTest;
 
 import java.io.IOException;
 
-/**
- * Transation test for MySQL.
- *
- * @author Justin Deoliveira, The Open Planning Project
- */
 public class InformixTransactionOnlineTest extends JDBCTransactionOnlineTest {
     protected JDBCTestSetup createTestSetup() {
         return new InformixTestSetup();

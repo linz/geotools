@@ -28,6 +28,8 @@ public class InformixPrimaryKeyOnlineTest extends JDBCPrimaryKeyOnlineTest {
 
     @Override
     public void testSequencedPrimaryKey() throws Exception {
-        // seems mysql does not really do explicit sequences...
+        // Skip - in Informix the sequences are not associated with the table, so we cannot discover them unless they
+        // conform to a naming convention of some kind. That cannot be relied upon in a 3rd-party database. Maybe this
+        // can be improved in the future.
     }
 }

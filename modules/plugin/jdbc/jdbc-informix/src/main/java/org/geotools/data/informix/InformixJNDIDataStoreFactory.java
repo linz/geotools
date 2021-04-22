@@ -16,15 +16,8 @@
  */
 package org.geotools.data.informix;
 
-import static org.geotools.data.informix.InformixDataStoreFactory.*;
-
 import org.geotools.jdbc.JDBCJNDIDataStoreFactory;
 
-/**
- * JNDI DataStoreFactory for mysql database.
- *
- * @author Christian Mueller
- */
 public class InformixJNDIDataStoreFactory extends JDBCJNDIDataStoreFactory {
 
     public InformixJNDIDataStoreFactory() {
