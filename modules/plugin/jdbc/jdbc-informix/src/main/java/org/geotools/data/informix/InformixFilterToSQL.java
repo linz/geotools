@@ -16,8 +16,6 @@
  */
 package org.geotools.data.informix;
 
-import java.io.IOException;
-import java.text.SimpleDateFormat;
 import org.geotools.data.jdbc.FilterToSQL;
 import org.geotools.filter.FilterCapabilities;
 import org.locationtech.jts.geom.Geometry;
@@ -39,19 +37,16 @@ import org.opengis.filter.spatial.Overlaps;
 import org.opengis.filter.spatial.Touches;
 import org.opengis.filter.spatial.Within;
 
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+
+/**
+ * Encodes a filter into a SQL WHERE statement using Informix-appropriate syntax.
+ *
+ * @author George Dewar, Land Information New Zealand
+ * @author Ines Falcao, Land Information New Zealand
+ */
 public class InformixFilterToSQL extends FilterToSQL {
-
-    protected boolean usePreciseSpatialOps;
-
-    public InformixFilterToSQL() {
-        this(false);
-    }
-
-    public InformixFilterToSQL(boolean usePreciseSpatialOps) {
-        super();
-        this.usePreciseSpatialOps = usePreciseSpatialOps;
-    }
-
     @Override
     protected FilterCapabilities createFilterCapabilities() {
         FilterCapabilities caps = super.createFilterCapabilities();

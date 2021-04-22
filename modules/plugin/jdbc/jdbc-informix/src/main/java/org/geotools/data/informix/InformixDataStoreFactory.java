@@ -43,7 +43,7 @@ public class InformixDataStoreFactory extends JDBCDataStoreFactory {
     public static final Param PORT = new Param("port", Integer.class, "Port", true, 9088);
 
     protected SQLDialect createSQLDialect(JDBCDataStore dataStore) {
-        return new InformixDialectBasic(dataStore);
+        return new InformixDialect(dataStore);
     }
 
     public String getDisplayName() {

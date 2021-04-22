@@ -18,8 +18,13 @@ package org.geotools.data.informix;
 
 import org.geotools.jdbc.JDBCJNDIDataStoreFactory;
 
+/**
+ * JNDI DataStoreFactory for Informix database.
+ *
+ * @author George Dewar, Land Information New Zealand
+ * @author Ines Falcao, Land Information New Zealand
+ */
 public class InformixJNDIDataStoreFactory extends JDBCJNDIDataStoreFactory {
-
     public InformixJNDIDataStoreFactory() {
         super(new InformixDataStoreFactory());
     }

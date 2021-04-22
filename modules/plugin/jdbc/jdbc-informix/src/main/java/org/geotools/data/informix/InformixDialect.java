@@ -25,7 +25,10 @@ import java.sql.Statement;
 import java.sql.Types;
 import java.util.Map;
 import java.util.logging.Level;
+
+import org.geotools.data.jdbc.FilterToSQL;
 import org.geotools.geometry.jts.Geometries;
+import org.geotools.jdbc.BasicSQLDialect;
 import org.geotools.jdbc.JDBCDataStore;
 import org.geotools.jdbc.SQLDialect;
 import org.geotools.referencing.CRS;
@@ -42,6 +45,7 @@ import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.io.WKBReader;
+import org.locationtech.jts.io.WKTWriter;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.AttributeDescriptor;
 import org.opengis.feature.type.GeometryDescriptor;
@@ -49,12 +53,12 @@ import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
 /**
- * Delegate for {@link InformixDialectBasic} and {@link InformixDialectPrepared} which implements
- * the common part of the api.
+ * Informix database dialect based on basic (non-prepared) statements.
  *
- * @author Justin Deoliveira, OpenGEO
+ * @author George Dewar, Land Information New Zealand
+ * @author Ines Falcao, Land Information New Zealand
  */
-public class InformixDialect extends SQLDialect {
+public class InformixDialect extends BasicSQLDialect {
     public InformixDialect(JDBCDataStore dataStore) {
         super(dataStore);
     }
@@ -168,41 +172,78 @@ public class InformixDialect extends SQLDialect {
         sql.append(")");
     }
 
+    @Override
     public void encodeGeometryEnvelope(String tableName, String geometryColumn, StringBuffer sql) {
-        sql.append("st_asbinary(");
-        sql.append("st_envelope(");
+        sql.append("ST_AsBinary(");
+        sql.append("ST_Envelope(");
+
         encodeColumnName(null, geometryColumn, sql);
         sql.append("))");
     }
 
-    public Envelope decodeGeometryEnvelope(ResultSet rs, int column, Connection cx)
-            throws SQLException, IOException {
-        // String wkb = rs.getString( column );
-        byte[] wkb = rs.getBytes(column);
-
-        try {
-            // TODO: srid
-            Polygon polygon = (Polygon) new WKBReader().read(wkb);
-
-            return polygon.getEnvelopeInternal();
-        } catch (ParseException e) {
-            String msg = "Error decoding wkb for envelope";
-            throw (IOException) new IOException(msg).initCause(e);
+    @Override
+    public void encodeGeometryValue(Geometry value, int dimension, int srid, StringBuffer sql)
+            throws IOException {
+        if (value != null) {
+            String fromText = fromTextFunctionName(value);
+            sql.append(fromText + "('");
+            sql.append(new WKTWriter().write(value));
+            if (srid == -1) {
+                LOGGER.warning("SRID -1 is not supported, using 0");
+                srid = 0;
+            }
+            sql.append("', ").append(srid).append(")");
+        } else {
+            sql.append("NULL");
         }
     }
 
+    // https://www.cursor-distribution.de/aktuell.12.10.xC6/documentation/ids_spat_bookmap.pdf
+    private String fromTextFunctionName(Geometry value) {
+        if (value instanceof Point) {
+            return "ST_PointFromText";
+        } else if (value instanceof LineString) {
+            return "ST_LineFromText";
+        } else if (value instanceof Polygon) {
+            return "ST_PolyFromText";
+        } else if (value instanceof MultiPoint) {
+            return "ST_MPointFromText";
+        } else if (value instanceof MultiLineString) {
+            return "ST_MLineFromText";
+        } else if (value instanceof MultiPolygon) {
+            return "ST_MPolyFromText";
+        }
+        return "ST_GeomFromText";
+    }
+
+    @Override
+    public Envelope decodeGeometryEnvelope(ResultSet rs, int column, Connection cx)
+            throws SQLException, IOException {
+        byte[] wkb = rs.getBytes(column);
+
+        try {
+            Geometry geom = new WKBReader().read(wkb);
+            return geom.getEnvelopeInternal();
+        } catch (ParseException e) {
+            String msg = "Error decoding wkb for envelope";
+            throw new IOException(msg, e);
+        }
+    }
+
+    @Override
     public Geometry decodeGeometryValue(
             GeometryDescriptor descriptor,
             ResultSet rs,
-            String name,
+            String column,
             GeometryFactory factory,
             Connection cx,
             Hints hints)
             throws IOException, SQLException {
-        byte[] bytes = rs.getBytes(name);
+        byte[] bytes = rs.getBytes(column);
         if (bytes == null) {
             return null;
         }
+
         try {
             return new WKBReader(factory).read(bytes);
         } catch (ParseException e) {
@@ -398,4 +439,8 @@ public class InformixDialect extends SQLDialect {
         sql.insert(selectIndex + "SELECT".length(), limitSql);
     }
 
+    @Override
+    public FilterToSQL createFilterToSQL() {
+        return new InformixFilterToSQL();
+    }
 }
