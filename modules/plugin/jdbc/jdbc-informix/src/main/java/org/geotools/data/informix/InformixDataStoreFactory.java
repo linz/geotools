@@ -39,8 +39,8 @@ public class InformixDataStoreFactory extends JDBCDataStoreFactory {
                     true,
                     "informix-sqli",
                     Collections.singletonMap(Parameter.LEVEL, "program"));
-    /** Default port number for MYSQL */
-    public static final Param PORT = new Param("port", Integer.class, "Port", true, 3306);
+    /** Default port number for Informix */
+    public static final Param PORT = new Param("port", Integer.class, "Port", true, 9088);
 
     protected SQLDialect createSQLDialect(JDBCDataStore dataStore) {
         return new InformixDialectBasic(dataStore);
