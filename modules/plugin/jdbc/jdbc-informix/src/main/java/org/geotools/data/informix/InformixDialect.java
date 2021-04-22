@@ -77,7 +77,6 @@ public class InformixDialect extends BasicSQLDialect {
     }
 
     public String getGeometryTypeName(Integer type) {
-        LOGGER.info("getGeometryTypeName " + type);
         return "st_geometry";
     }
 
@@ -182,8 +181,7 @@ public class InformixDialect extends BasicSQLDialect {
     }
 
     @Override
-    public void encodeGeometryValue(Geometry value, int dimension, int srid, StringBuffer sql)
-            throws IOException {
+    public void encodeGeometryValue(Geometry value, int dimension, int srid, StringBuffer sql) {
         if (value != null) {
             String fromText = fromTextFunctionName(value);
             sql.append(fromText + "('");
@@ -293,13 +291,6 @@ public class InformixDialect extends BasicSQLDialect {
     }
 
     @Override
-    public void registerSqlTypeToSqlTypeNameOverrides(Map<Integer, String> overrides) {
-        // overrides.put(Types.BOOLEAN, "BOOL");
-    }
-
-    public void encodePostCreateTable(String tableName, StringBuffer sql) {}
-
-    @Override
     public void encodePostColumnCreateTable(AttributeDescriptor att, StringBuffer sql) {
         // make geometry columns non null in order to be able to index them
         if (att instanceof GeometryDescriptor && !att.isNillable()) {
@@ -374,9 +365,6 @@ public class InformixDialect extends BasicSQLDialect {
             } finally {
                 dataStore.closeSafe(st);
             }
-
-
-
         }
     }
 
