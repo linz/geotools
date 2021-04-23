@@ -38,6 +38,7 @@ public class InformixDataStoreFactoryTest extends TestCase {
         params.put(JDBCDataStoreFactory.HOST.key, "localhost");
         params.put(JDBCDataStoreFactory.PORT.key, "9088");
         params.put(JDBCDataStoreFactory.USER.key, "informix");
+        params.put("jdbcUrl", "jdbc:informix-sqli://localhost:9088/geotest");
         assertTrue(factory.canProcess(params));
     }
 }

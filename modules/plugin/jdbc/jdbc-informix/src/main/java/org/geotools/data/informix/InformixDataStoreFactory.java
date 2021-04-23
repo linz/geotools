@@ -16,6 +16,7 @@
  */
 package org.geotools.data.informix;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import org.geotools.data.Parameter;
@@ -41,6 +42,13 @@ public class InformixDataStoreFactory extends JDBCDataStoreFactory {
                     Collections.singletonMap(Parameter.LEVEL, "program"));
     /** Default port number for Informix */
     public static final Param PORT = new Param("port", Integer.class, "Port", true, 9088);
+
+    public static final Param JDBC_URL =
+            new Param(
+                    "jdbcUrl",
+                    String.class,
+                    "The JDBC url (check the JDBC driver docs to find out its format)",
+                    true);
 
     protected SQLDialect createSQLDialect(JDBCDataStore dataStore) {
         return new InformixDialect(dataStore);
@@ -71,8 +79,18 @@ public class InformixDataStoreFactory extends JDBCDataStoreFactory {
     protected void setupParameters(Map parameters) {
         super.setupParameters(parameters);
         parameters.put(DBTYPE.key, DBTYPE);
-        parameters.put(PORT.key, PORT);
+
+        parameters.remove(HOST.key);
+        parameters.remove(PORT.key);
+        parameters.remove(DATABASE.key);
 
         parameters.remove(SCHEMA.key);
+
+        parameters.put(JDBC_URL.key, JDBC_URL);
+    }
+
+    protected String getJDBCUrl(Map<String, ?> params) throws IOException {
+        // jdbc url
+        return (String) JDBC_URL.lookUp(params);
     }
 }
