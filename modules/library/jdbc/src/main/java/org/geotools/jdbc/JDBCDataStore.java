@@ -1320,6 +1320,9 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
         if (query == null) {
             return true;
         }
+        if (!query.isMaxFeaturesUnlimited() || (query.getStartIndex() != null && query.getStartIndex() > 0)) {
+            return false;
+        }
         if (!Filter.INCLUDE.equals(query.getFilter())) {
             return false;
         }

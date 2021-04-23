@@ -21,13 +21,17 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Types;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 
 import org.geotools.data.jdbc.FilterToSQL;
 import org.geotools.geometry.jts.Geometries;
+import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.jdbc.BasicSQLDialect;
 import org.geotools.jdbc.JDBCDataStore;
 import org.geotools.jdbc.SQLDialect;
@@ -432,5 +436,53 @@ public class InformixDialect extends BasicSQLDialect {
     @Override
     public FilterToSQL createFilterToSQL() {
         return new InformixFilterToSQL();
+    }
+
+    @Override
+    public List<ReferencedEnvelope> getOptimizedBounds(
+            String schema, SimpleFeatureType featureType, Connection cx)
+            throws IOException {
+        String tableName = featureType.getTypeName();
+
+        Statement st = null;
+        ResultSet rs = null;
+
+        List<ReferencedEnvelope> result = new ArrayList<>();
+        try {
+            st = cx.createStatement();
+
+            for (AttributeDescriptor att : featureType.getAttributeDescriptors()) {
+                if (att instanceof GeometryDescriptor) {
+                    StringBuffer sql = new StringBuffer();
+                    sql.append("select ST_AsBinary(SE_BoundingBox('");
+                    sql.append(tableName);
+                    sql.append("', '");
+                    sql.append(att.getName().getLocalPart());
+                    sql.append("'))");
+                    rs = st.executeQuery(sql.toString());
+
+                    if (rs.next()) {
+                        // decode the geometry
+                        Envelope env = decodeGeometryEnvelope(rs, 1, cx);
+
+                        // reproject and merge
+                        if (!env.isNull()) {
+                            CoordinateReferenceSystem flatCRS =
+                                    CRS.getHorizontalCRS(
+                                            featureType.getCoordinateReferenceSystem());
+                            result.add(new ReferencedEnvelope(env, flatCRS));
+                        }
+                    }
+                    rs.close();
+                }
+            }
+        } catch (SQLException e) {
+            LOGGER.log(Level.WARNING,"Failed to use SE_BoundingBox, falling back on envelope aggregation", e);
+            return null;
+        } finally {
+            dataStore.closeSafe(rs);
+            dataStore.closeSafe(st);
+        }
+        return result;
     }
 }

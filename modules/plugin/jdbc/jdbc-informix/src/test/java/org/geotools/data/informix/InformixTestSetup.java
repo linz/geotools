@@ -75,6 +75,8 @@ public class InformixTestSetup extends JDBCTestSetup {
         System.out.println(sb.toString());
         run(sb.toString());
 
+        run("create index ft1_geom_idx on ft1(geometry ST_Geometry_ops) using rtree;");
+
         // setup so that we can start counting from 0, otherwise 0 is treated as a special value
         //        run("SET sql_mode='NO_AUTO_VALUE_ON_ZERO';");
 
