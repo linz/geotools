@@ -218,6 +218,7 @@ public class InformixDialect extends BasicSQLDialect {
     public Envelope decodeGeometryEnvelope(ResultSet rs, int column, Connection cx)
             throws SQLException, IOException {
         byte[] wkb = rs.getBytes(column);
+        if (wkb == null) return null;
 
         try {
             Geometry geom = new WKBReader().read(wkb);
@@ -311,6 +312,7 @@ public class InformixDialect extends BasicSQLDialect {
             }
             GeometryDescriptor gd = (GeometryDescriptor) ad;
 
+            // TODO: Check this, syntax is probably wrong for Informix, is it not ever running?
             if (!ad.isNillable()) {
                 // can only index non null columns
                 StringBuffer sql = new StringBuffer("ALTER TABLE ");
