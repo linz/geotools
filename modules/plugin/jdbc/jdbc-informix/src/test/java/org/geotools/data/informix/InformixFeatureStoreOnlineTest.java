@@ -16,11 +16,10 @@
  */
 package org.geotools.data.informix;
 
-import org.geotools.jdbc.JDBCFeatureStoreOnlineTest;
-import org.geotools.jdbc.JDBCTestSetup;
-
 import java.io.IOException;
 import java.sql.SQLException;
+import org.geotools.jdbc.JDBCFeatureStoreOnlineTest;
+import org.geotools.jdbc.JDBCTestSetup;
 
 public class InformixFeatureStoreOnlineTest extends JDBCFeatureStoreOnlineTest {
     protected JDBCTestSetup createTestSetup() {

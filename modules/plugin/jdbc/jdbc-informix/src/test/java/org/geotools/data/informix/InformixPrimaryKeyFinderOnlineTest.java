@@ -16,11 +16,10 @@
  */
 package org.geotools.data.informix;
 
+import java.util.Map;
 import org.geotools.jdbc.JDBCDataStoreFactory;
 import org.geotools.jdbc.JDBCPrimaryKeyFinderOnlineTest;
 import org.geotools.jdbc.JDBCPrimaryKeyFinderTestSetup;
-
-import java.util.Map;
 
 public class InformixPrimaryKeyFinderOnlineTest extends JDBCPrimaryKeyFinderOnlineTest {
 

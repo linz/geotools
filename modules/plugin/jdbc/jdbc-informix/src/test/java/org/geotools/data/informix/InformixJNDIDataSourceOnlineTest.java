@@ -17,12 +17,11 @@
 
 package org.geotools.data.informix;
 
+import java.util.List;
 import org.geotools.jdbc.JDBCDataStoreFactory;
 import org.geotools.jdbc.JDBCJNDIDataSourceOnlineTest;
 import org.geotools.jdbc.JDBCJNDIDataStoreFactory;
 import org.geotools.jdbc.JDBCJNDITestSetup;
-
-import java.util.List;
 
 public class InformixJNDIDataSourceOnlineTest extends JDBCJNDIDataSourceOnlineTest {
 

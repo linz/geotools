@@ -16,10 +16,9 @@
  */
 package org.geotools.data.informix;
 
+import java.io.IOException;
 import org.geotools.jdbc.JDBCInEncodingOnlineTest;
 import org.geotools.jdbc.JDBCTestSetup;
-
-import java.io.IOException;
 
 public class InformixInEncodingOnlineTest extends JDBCInEncodingOnlineTest {
 

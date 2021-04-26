@@ -14,7 +14,8 @@ public class InformixDataStoreOnlineTest extends JDBCDataStoreOnlineTest {
 
     @Override
     public void testCreateSchemaWithConstraints() {
-        // Informix does not complain if an attempt is made to insert content longer than the maximum length
+        // Informix does not complain if an attempt is made to insert content longer than the
+        // maximum length
         // The test code in the superclass could be improved to handle this though
     }
 }

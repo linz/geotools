@@ -16,6 +16,8 @@
  */
 package org.geotools.data.informix;
 
+import java.io.IOException;
+import java.text.SimpleDateFormat;
 import org.geotools.data.jdbc.FilterToSQL;
 import org.geotools.filter.FilterCapabilities;
 import org.locationtech.jts.geom.Geometry;
@@ -36,9 +38,6 @@ import org.opengis.filter.spatial.Intersects;
 import org.opengis.filter.spatial.Overlaps;
 import org.opengis.filter.spatial.Touches;
 import org.opengis.filter.spatial.Within;
-
-import java.io.IOException;
-import java.text.SimpleDateFormat;
 
 /**
  * Encodes a filter into a SQL WHERE statement using Informix-appropriate syntax.
@@ -157,7 +156,9 @@ public class InformixFilterToSQL extends FilterToSQL {
 
     @Override
     protected void writeLiteral(Object literal) throws IOException {
-        LOGGER.fine("Writing literal of type " + (literal != null ? literal.getClass().getName() : null));
+        LOGGER.fine(
+                "Writing literal of type "
+                        + (literal != null ? literal.getClass().getName() : null));
         if (literal instanceof java.sql.Time) {
             SimpleDateFormat format = new SimpleDateFormat("HH:mm:ss");
             out.write("'" + format.format(literal) + "'");

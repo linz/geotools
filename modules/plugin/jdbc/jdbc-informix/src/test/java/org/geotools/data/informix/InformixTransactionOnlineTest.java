@@ -16,10 +16,9 @@
  */
 package org.geotools.data.informix;
 
+import java.io.IOException;
 import org.geotools.jdbc.JDBCTestSetup;
 import org.geotools.jdbc.JDBCTransactionOnlineTest;
-
-import java.io.IOException;
 
 public class InformixTransactionOnlineTest extends JDBCTransactionOnlineTest {
     protected JDBCTestSetup createTestSetup() {
