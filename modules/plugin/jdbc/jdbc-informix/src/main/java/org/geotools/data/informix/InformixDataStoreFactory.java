@@ -76,7 +76,7 @@ public class InformixDataStoreFactory extends JDBCDataStoreFactory {
     }
 
     @Override
-    protected void setupParameters(Map parameters) {
+    protected void setupParameters(Map<String, Object> parameters) {
         super.setupParameters(parameters);
         parameters.put(DBTYPE.key, DBTYPE);
 
