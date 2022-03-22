@@ -16,6 +16,16 @@
  */
 package org.geotools.data.informix;
 
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Level;
 import org.geotools.data.jdbc.FilterToSQL;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.jdbc.BasicSQLDialect;
@@ -40,16 +50,6 @@ import org.opengis.feature.type.AttributeDescriptor;
 import org.opengis.feature.type.GeometryDescriptor;
 import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
-import java.io.IOException;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.sql.Types;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.logging.Level;
 
 /**
  * Informix database dialect based on basic (non-prepared) statements.
@@ -439,8 +439,7 @@ public class InformixDialect extends BasicSQLDialect {
 
     @Override
     public List<ReferencedEnvelope> getOptimizedBounds(
-            String schema, SimpleFeatureType featureType, Connection cx)
-            throws IOException {
+            String schema, SimpleFeatureType featureType, Connection cx) throws IOException {
         String tableName = featureType.getTypeName();
 
         Statement st = null;
@@ -476,7 +475,10 @@ public class InformixDialect extends BasicSQLDialect {
                 }
             }
         } catch (SQLException e) {
-            LOGGER.log(Level.WARNING,"Failed to use SE_BoundingBox, falling back on envelope aggregation", e);
+            LOGGER.log(
+                    Level.WARNING,
+                    "Failed to use SE_BoundingBox, falling back on envelope aggregation",
+                    e);
             return null;
         } finally {
             dataStore.closeSafe(rs);
