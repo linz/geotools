@@ -110,7 +110,6 @@ public class FunctionImpl extends ExpressionAbstract implements Function {
     }
 
     /** Sets the function parameters. */
-    @SuppressWarnings("unchecked")
     public void setParameters(List<Expression> params) {
         this.params = params == null ? Collections.emptyList() : new ArrayList<>(params);
     }
@@ -205,7 +204,7 @@ public class FunctionImpl extends ExpressionAbstract implements Function {
      * Gathers up and groups the parameters to the function based on the declared parameters.
      *
      * <p>This method calls {@link #validateArguments()} which enforces java style argument
-     * conventions for multi valued parameters. Basically enforcing that only teh last argument in a
+     * conventions for multi valued parameters. Basically enforcing that only the last argument in a
      * function can be variable.
      */
     protected LinkedHashMap<String, Object> dispatchArguments(Object obj) {

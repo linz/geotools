@@ -263,7 +263,7 @@ public abstract class SQLDialect {
      *
      * <p>Implementing this method is optional. It is used to allow for handling user defined types
      * or "DOMAINS". Dialects that implement this method should set the appropriate information on
-     * the <tt>metadata</tt> object to allow the column to be mapped via teh regular type mapping
+     * the <tt>metadata</tt> object to allow the column to be mapped via the regular type mapping
      * heuristics.
      *
      * @param columnMetaData The column metdata.
@@ -1380,5 +1380,13 @@ public abstract class SQLDialect {
     public Object convertValue(Object value, AttributeDescriptor ad) {
         Class<?> binding = ad.getType().getBinding();
         return Converters.convert(value, binding);
+    }
+
+    /**
+     * Returns true if this database can "group by" on a Geometry column. Defaults to false,
+     * specific implementations with this capability should override
+     */
+    public boolean canGroupOnGeometry() {
+        return false;
     }
 }

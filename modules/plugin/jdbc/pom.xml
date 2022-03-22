@@ -13,7 +13,7 @@
   <parent>
     <groupId>org.geotools</groupId>
     <artifactId>plugin</artifactId>
-    <version>26-SNAPSHOT</version>
+    <version>27-SNAPSHOT</version>
   </parent>
 
   <!-- =========================================================== -->
@@ -56,7 +56,6 @@
     <module>jdbc-mysql</module>
     <module>jdbc-informix</module>
     <module>jdbc-sqlserver</module>
-    <module>jdbc-teradata</module>
     <module>jdbc-hana</module>
   </modules>
 

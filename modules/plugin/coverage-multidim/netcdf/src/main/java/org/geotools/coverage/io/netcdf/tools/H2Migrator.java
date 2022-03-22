@@ -183,27 +183,19 @@ public class H2Migrator {
             final File mosaicDirectory = configuration.getMosaicDirectory();
             // simplifying assumption, the coverages are the ones that have a config file with
             // a sidecar sample image file
+            String[] files =
+                    mosaicDirectory.list(
+                            (dir, name) -> {
+                                if (!name.endsWith(".properties")) {
+                                    return false;
+                                }
+                                String baseName = FilenameUtils.getBaseName(name);
+                                return new File(dir, baseName + Utils.SAMPLE_IMAGE_NAME).exists()
+                                        || new File(dir, baseName + Utils.SAMPLE_IMAGE_NAME_LEGACY)
+                                                .exists();
+                            });
             names =
-                    Arrays.stream(
-                                    mosaicDirectory.list(
-                                            (dir, name) -> {
-                                                if (!name.endsWith(".properties")) {
-                                                    return false;
-                                                }
-                                                String baseName = FilenameUtils.getBaseName(name);
-                                                return new File(
-                                                                        dir,
-                                                                        baseName
-                                                                                + Utils
-                                                                                        .SAMPLE_IMAGE_NAME)
-                                                                .exists()
-                                                        || new File(
-                                                                        dir,
-                                                                        baseName
-                                                                                + Utils
-                                                                                        .SAMPLE_IMAGE_NAME_LEGACY)
-                                                                .exists();
-                                            }))
+                    Arrays.stream(files)
                             .map(f -> FilenameUtils.getBaseName(f))
                             .toArray(n -> new String[n]);
         }
@@ -233,8 +225,7 @@ public class H2Migrator {
         @SuppressWarnings("unchecked")
         Set<String> locations = uniqueLocations.getUnique();
         // map via pathtype and return
-        return locations
-                .stream()
+        return locations.stream()
                 .map(l -> pathType.resolvePath(configuration.getMosaicDirectory().getPath(), l))
                 .map(url -> URLs.urlToFile(url).getAbsolutePath())
                 .collect(Collectors.toList());
@@ -300,8 +291,7 @@ public class H2Migrator {
         @SuppressWarnings("unchecked")
         Set<String> locations = uniqueLocations.getUnique();
         // map via pathtype and return
-        return locations
-                .stream()
+        return locations.stream()
                 .map(l -> pathType.resolvePath(mosaicDirectoryPath, l))
                 .map(url -> URLs.urlToFile(url).getAbsolutePath())
                 .collect(Collectors.toList());

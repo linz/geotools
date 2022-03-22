@@ -61,7 +61,6 @@ import org.opengis.referencing.operation.TransformException;
  * @author Daniele Romagnoli, GeoSolutions
  * @author Simone Giannecchini, GeoSolutions
  */
-@SuppressWarnings("rawtypes")
 public class RasterLayerRequest {
     /** Logger. */
     private static final Logger LOGGER =
@@ -102,7 +101,7 @@ public class RasterLayerRequest {
     RasterManager rasterManager;
 
     private Color inputTransparentColor =
-            AbstractGridFormat.INPUT_TRANSPARENT_COLOR.getDefaultValue();;
+            AbstractGridFormat.INPUT_TRANSPARENT_COLOR.getDefaultValue();
 
     private boolean blend = ImageMosaicFormat.FADING.getDefaultValue();
 
@@ -110,7 +109,7 @@ public class RasterLayerRequest {
     private MergeBehavior mergeBehavior = MergeBehavior.getDefault();
 
     private Color outputTransparentColor =
-            ImageMosaicFormat.OUTPUT_TRANSPARENT_COLOR.getDefaultValue();;
+            ImageMosaicFormat.OUTPUT_TRANSPARENT_COLOR.getDefaultValue();
 
     /**
      * Max number of tiles that this plugin will load.

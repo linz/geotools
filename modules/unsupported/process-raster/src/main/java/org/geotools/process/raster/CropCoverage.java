@@ -22,9 +22,11 @@ import org.geotools.coverage.grid.GridCoverage2D;
 import org.geotools.coverage.processing.CoverageProcessor;
 import org.geotools.geometry.GeneralEnvelope;
 import org.geotools.geometry.jts.ReferencedEnvelope;
+import org.geotools.image.ImageWorker;
 import org.geotools.process.factory.DescribeParameter;
 import org.geotools.process.factory.DescribeProcess;
 import org.geotools.process.factory.DescribeResult;
+import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryCollection;
 import org.opengis.parameter.ParameterValueGroup;
@@ -38,9 +40,8 @@ import org.opengis.util.ProgressListener;
  * @author ETj <etj at geo-solutions.it>
  */
 @DescribeProcess(
-    title = "Crop Coverage",
-    description = "Returns the portion of a raster bounded by a given geometry."
-)
+        title = "Crop Coverage",
+        description = "Returns the portion of a raster bounded by a given geometry.")
 public class CropCoverage implements RasterProcess {
 
     private static final CoverageProcessor PROCESSOR = CoverageProcessor.getInstance();
@@ -79,6 +80,10 @@ public class CropCoverage implements RasterProcess {
         param.parameter("Envelope").setValue(bounds);
         param.parameter("ROI").setValue(roi);
 
-        return (GridCoverage2D) PROCESSOR.doOperation(param);
+        Hints hints = null;
+        if (new ImageWorker(coverage.getRenderedImage()).getNoData() == null)
+            hints = new Hints(ImageWorker.FORCE_MOSAIC_ROI_PROPERTY, true);
+
+        return (GridCoverage2D) PROCESSOR.doOperation(param, hints);
     }
 }

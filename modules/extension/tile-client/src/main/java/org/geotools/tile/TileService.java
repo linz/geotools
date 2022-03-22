@@ -22,13 +22,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.http.HTTPClient;
-import org.geotools.http.HTTPClientFinder;
 import org.geotools.http.HTTPResponse;
 import org.geotools.image.io.ImageIOExt;
 import org.geotools.referencing.CRS;
@@ -56,20 +54,39 @@ public abstract class TileService implements ImageLoader {
 
     protected static final Logger LOGGER = Logging.getLogger(TileService.class);
 
+    protected static int cacheSize = 50;
+
     /**
      * This WeakHashMap acts as a memory cache.
      *
      * <p>Because we are using SoftReference, we won't run out of Memory, the GC will free space.
      */
-    private final ObjectCache<String, Tile> tiles = ObjectCaches.create("soft", 50); // $NON-NLS-1$
+    private final ObjectCache<String, Tile> tiles = ObjectCaches.create("soft", cacheSize);
 
-    private String baseURL;
-
-    private String name;
+    private final String baseURL;
+    private final String name;
     private final HTTPClient client;
 
     /**
-     * Create a new TileService with a name and a base URL
+     * Creates a TileService
+     *
+     * <p>Client isn't set so you should override loadImageTileImage.
+     *
+     * @param name the name. Cannot be null.
+     */
+    protected TileService(String name) {
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Name cannot be null");
+        }
+        this.name = name;
+        this.baseURL = null;
+        this.client = null;
+    }
+
+    /**
+     * Create a new TileService with a name and a base URL.
+     *
+     * <p>Client isn't set so you should override loadImageTileImage.
      *
      * @param name the name. Cannot be null.
      * @param baseURL the base URL. This is a string representing the common part of the URL for all
@@ -77,7 +94,15 @@ public abstract class TileService implements ImageLoader {
      *     URL is well-formed.
      */
     protected TileService(String name, String baseURL) {
-        this(name, baseURL, HTTPClientFinder.createClient());
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Name cannot be null");
+        }
+        this.name = name;
+        if (baseURL == null || baseURL.isEmpty()) {
+            throw new IllegalArgumentException("Base URL cannot be null");
+        }
+        this.baseURL = baseURL;
+        this.client = null;
     }
 
     /**
@@ -90,25 +115,20 @@ public abstract class TileService implements ImageLoader {
      * @param client HTTPClient instance to use for a tile request.
      */
     protected TileService(String name, String baseURL, HTTPClient client) {
-        setName(name);
-        setBaseURL(baseURL);
-
-        Objects.requireNonNull(client);
-        this.client = client;
-    }
-
-    private void setBaseURL(String baseURL) {
-        if (baseURL == null || baseURL.isEmpty()) {
-            throw new IllegalArgumentException("Base URL cannot be null");
-        }
-        this.baseURL = baseURL;
-    }
-
-    private void setName(String name) {
         if (name == null || name.isEmpty()) {
             throw new IllegalArgumentException("Name cannot be null");
         }
         this.name = name;
+
+        if (baseURL == null || baseURL.isEmpty()) {
+            throw new IllegalArgumentException("Base URL cannot be null");
+        }
+        this.baseURL = baseURL;
+
+        if (client == null) {
+            throw new IllegalArgumentException("Client cannot be null");
+        }
+        this.client = client;
     }
 
     public String getName() {
@@ -270,11 +290,10 @@ public abstract class TileService implements ImageLoader {
         Set<Tile> tileList = new HashSet<>(100);
 
         // Let's get the first tile which covers the upper-left corner
-        Tile firstTile =
-                tileFactory.findTileAtCoordinate(
-                        extent.getMinX(), extent.getMaxY(), zoomLevel, this);
+        TileIdentifier identifier =
+                identifyTileAtCoordinate(extent.getMinX(), extent.getMaxY(), zoomLevel);
+        Tile firstTile = obtainTile(identifier);
 
-        addTileToCache(firstTile);
         tileList.add(firstTile);
 
         Tile firstTileOfRow = firstTile;
@@ -290,10 +309,10 @@ public abstract class TileService implements ImageLoader {
 
                 // Check if the new tile is still part of the extent and
                 // that we don't have the first tile again
-                if (extent.intersects((Envelope) rightNeighbour.getExtent())
+                if (rightNeighbour != null
+                        && extent.intersects((Envelope) rightNeighbour.getExtent())
                         && !firstTileOfRow.equals(rightNeighbour)) {
 
-                    addTileToCache(rightNeighbour);
                     tileList.add(rightNeighbour);
 
                     movingTile = rightNeighbour;
@@ -314,10 +333,10 @@ public abstract class TileService implements ImageLoader {
             Tile lowerNeighbour = tileFactory.findLowerNeighbour(firstTileOfRow, this);
 
             // Check if the new tile is still part of the extent
-            if (extent.intersects((Envelope) lowerNeighbour.getExtent())
+            if (lowerNeighbour != null
+                    && extent.intersects((Envelope) lowerNeighbour.getExtent())
                     && !firstTile.equals(lowerNeighbour)) {
 
-                addTileToCache(lowerNeighbour);
                 tileList.add(lowerNeighbour);
 
                 firstTileOfRow = movingTile = lowerNeighbour;
@@ -328,6 +347,10 @@ public abstract class TileService implements ImageLoader {
 
         return tileList;
     }
+
+    /** Returns tile identifier for the tile at the given coordinate */
+    public abstract TileIdentifier identifyTileAtCoordinate(
+            double lon, double lat, ZoomLevel zoomLevel);
 
     /** Fetches the image from url given by tile. */
     @Override
@@ -340,17 +363,9 @@ public abstract class TileService implements ImageLoader {
         }
     }
 
-    /**
-     * Add a tile to the cache.
-     *
-     * <p>The cache used here is a soft cache, which has an un-controllable time to live (could last
-     * a split seconds or 100 years).
-     *
-     * <p>Subclasses services (such as WMTS) may have some more hints about the tile TTL, so a more
-     * controllable cache should be implemented in these cases.
-     */
-    protected Tile addTileToCache(Tile tile) {
-        String id = tile.getId();
+    /** Check cache for given identifier. Call TileFactory to create new if not present. */
+    public Tile obtainTile(TileIdentifier identifier) {
+        String id = identifier.getId();
         boolean isInCache = !(tiles.peek(id) == null || tiles.get(id) == null);
 
         if (isInCache) {
@@ -360,10 +375,11 @@ public abstract class TileService implements ImageLoader {
             return tiles.get(id);
         } else {
             if (LOGGER.isLoggable(Level.FINER)) {
-                LOGGER.fine("Tile added to cache: " + id);
+                LOGGER.fine("Tile created new: " + id);
             }
-            tiles.put(id, tile);
-            return tile;
+            final Tile newTile = getTileFactory().create(identifier, this);
+            tiles.put(id, newTile);
+            return newTile;
         }
     }
 
@@ -377,6 +393,7 @@ public abstract class TileService implements ImageLoader {
      */
     public abstract double[] getScaleList();
 
+    /** Returns the bounds for the complete TileService */
     public abstract ReferencedEnvelope getBounds();
 
     /** The projection the tiles are drawn in. */
@@ -438,7 +455,15 @@ public abstract class TileService implements ImageLoader {
         return getName();
     }
 
+    /**
+     * Returns the http client to use for fetching images.
+     *
+     * @throws IllegalStateException If the service is constructed without a client.
+     */
     public final HTTPClient getHttpClient() {
+        if (this.client == null) {
+            throw new IllegalStateException("This service isn't set up with a http client.");
+        }
         return this.client;
     }
 }

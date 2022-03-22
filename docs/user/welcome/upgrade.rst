@@ -5,13 +5,14 @@ With a library as old as GeoTools you will occasionally run into a project from 
 needs to be upgraded. This page collects the upgrade notes for each release change; highlighting any
 fundamental changes with code examples showing how to upgrade your code.
 
-But first to upgrade - change your dependency geotools.version to |release| (or an appropriate stable version):
+The first step to upgrade: change the ``geotools.version`` of your dependencies in your ``pom.xml`` to |release| (or an appropriate stable version):
 
-.. code-block:: xml
+.. use a parsed-literal here instead of a code-block because substitution of the RELEASE token does not work in a code-block
+.. parsed-literal::
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <geotools.version>|release|</geotools.version>
+        <geotools.version>\ |release|\ </geotools.version>
     </properties>
     ....
     <dependencies>
@@ -28,13 +29,45 @@ But first to upgrade - change your dependency geotools.version to |release| (or 
         ....
     </dependencies>
 
+
 GeoTools 26.x
 -------------
 
 Shapefile
 ^^^^^^^^^
 
-If no explicit charset parameter passed to ``ShapefileDataStoreFactory``, it will now instruct created ``ShapefileDataStore`` to try to figure out DBF file charset from CPG file. If the store fails to read CPG it uses the default charset specified by ``ShapefileDataStoreFactory.DBFCHARSET`` constant, which is usual behavior.
+``ShapefileDataStore`` will autodetect DBF charset from CPG sidecar file, the feature now enabled by default. When this feature is enabled, the following rules apply:
+
+* if no explicit charset parameter passed to ``ShapefileDataStoreFactory``, it will instruct created ``ShapefileDataStore``
+  to try and figure out DBF file charset from CPG file. In this case, CPG files must contain correct charset name, otherwise, 
+  these files should be removed, or updated properly. 
+* if the store fails to read CPG, it uses the default charset specified by ``ShapefileDataStoreFactory.DBFCHARSET`` constant, 
+  which is usual behavior.
+
+In case of trouble there is an ability to bring old behavior back by setting ``org.geotools.shapefile.enableCPG`` system property
+to "false". This turns autodetection off. The name of the property stored in ``ShapefileDataStoreFactory.ENABLE_CPG_SWITCH`` constant.
+
+Unit of Measurement Formatting
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+As more third-party libraries adopt the Java module system, stricter rules regarding access to
+non-public parts of other modules apply.
+
+One such case was the way GeoTools' unit formatters were previously initialized, which caused
+GeoTools to fail immediately when run from the module path.
+
+Fixing this required changes to multiple classes:
+
+* ``GeoToolsUnitFormat`` which was previously used to access innards of a third-party library and
+  provide access to GeoTools-specific unit formatting instance has been split up and moved:
+  * Building and initializing individual unit formatting instances can now be done using the
+  ``org.geotools.measure.BaseUnitFormatter`` constructor (instead of extending
+  ``org.geotools.util.GeoToolsUnitFormat`` and its inner class ``BaseGT2Format``).
+  * The GeoTools-specific formatting instance can now be accessed with
+  ``org.geotools.measure.UnitFormat.getInstance()`` (instead of
+  ``org.geotools.util.GeoToolsUnitFormat.getInstance()``).
+* ``org.geotools.referencing.wkt.DefaultUnitParser`` has been moved and renamed to
+  ``org.geotools.measure.WktUnitFormat``.
 
 GeoTools 25.x
 -------------
@@ -742,7 +775,7 @@ GeoTools 10.0
 
 .. sidebar:: Wiki
 
-   * `GeoTools 10.0 <https://github.com/geotools/geotools/wiki/10.x>`_
+   * :wiki:`10.x`
 
    For background details on any API changes review the change proposals above.
 
@@ -762,7 +795,7 @@ GeoTools 9.0
 
 .. sidebar:: Wiki
 
-   * `GeoTools 9.0 <https://github.com/geotools/geotools/wiki/9.x>`_
+   * :wiki:`9.x`
 
    For background details on any API changes review the change proposals above.
 
@@ -939,7 +972,7 @@ GeoTools 8.0
 
 .. sidebar:: Wiki
 
-   * `GeoTools 8.0 <https://github.com/geotools/geotools/wiki/8.x>`_
+   * :wiki:`8.x`
 
    You are encouraged to review the change proposals for GeoTools 8.0 for background information
    on the following changes.
@@ -1079,7 +1112,7 @@ GeoTools 2.7
 
 .. sidebar:: Wiki
 
-   * `GeoTools 2.7.0 <https://github.com/geotools/geotools/wiki/2.7.x>`_
+   * :wiki:`2.7.x`
 
    You are encouraged to review the change proposals for GeoTools 2.7.0 for background information
    on the following changes.
@@ -1277,7 +1310,7 @@ GeoTools 2.6
 
 .. sidebar:: Wiki
 
-   * `GeoTools 2.6.0 <https://github.com/geotools/geotools/wiki/2.6.x>`_
+   * :wiki:`2.6.x`
 
    You are encouraged to review the change proposals for GeoTools 2.6.0 for background information
    on the following changes.
@@ -1493,7 +1526,7 @@ GeoTools 2.5
 
 .. sidebar:: Wiki
 
-   * `GeoTools 2.5.0 <https://github.com/geotools/geotools/wiki/2.5.x>`_
+   * :wiki:`2.5.x`
 
    You are encouraged to review the change proposals for GeoTools 2.5.0 for background information
    on the following changes.
@@ -1816,7 +1849,7 @@ GeoTools 2.4
 
 .. sidebar:: Wiki
 
-   * `GeoTools 2.4.0 <https://github.com/geotools/geotools/wiki/2.4.x>`_
+   * :wiki:`2.4.x`
 
    You are encouraged to review the change proposals for GeoTools 2.4.0 for background information
    on the following changes.

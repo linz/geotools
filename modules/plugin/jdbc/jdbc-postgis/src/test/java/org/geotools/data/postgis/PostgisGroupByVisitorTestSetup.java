@@ -50,7 +50,49 @@ public class PostgisGroupByVisitorTestSetup extends JDBCGroupByVisitorTestSetup 
     }
 
     @Override
+    protected void createFt1GroupByTable() throws Exception {
+        run(
+                "CREATE TABLE \"ft1_group_by\"(" //
+                        + "\"id\" serial primary key, " //
+                        + "\"geometry\" geometry(Point,4326), " //
+                        + "\"intProperty\" int," //
+                        + "\"doubleProperty\" double precision, " //
+                        + "\"stringProperty\" varchar)");
+        run(
+                "CREATE INDEX FT1_GROUP_BY_GEOMETRY_INDEX ON \"ft1_group_by\" USING GIST (\"geometry\") ");
+
+        run(
+                "INSERT INTO \"ft1_group_by\" VALUES(0, ST_GeometryFromText('POINT(0 0)', 4326), 0, 0.0, 'aa')");
+        run(
+                "INSERT INTO \"ft1_group_by\" VALUES(1, ST_GeometryFromText('POINT(0 0)', 4326), 1, 1.0, 'ba')");
+        run(
+                "INSERT INTO \"ft1_group_by\" VALUES(2, ST_GeometryFromText('POINT(0 0)', 4326), 2, 2.0, 'ca')");
+        run(
+                "INSERT INTO \"ft1_group_by\" VALUES(3, ST_GeometryFromText('POINT(1 1)', 4326), 10, 10.0, 'ab')");
+        run(
+                "INSERT INTO \"ft1_group_by\" VALUES(4, ST_GeometryFromText('POINT(1 1)', 4326), 11, 11.0, 'bb')");
+        run(
+                "INSERT INTO \"ft1_group_by\" VALUES(5, ST_GeometryFromText('POINT(1 1)', 4326), 12, 12.0, 'cb')");
+        run(
+                "INSERT INTO \"ft1_group_by\" VALUES(6, ST_GeometryFromText('POINT(2 2)', 4326), 20, 20.0, 'ac')");
+        run(
+                "INSERT INTO \"ft1_group_by\" VALUES(7, ST_GeometryFromText('POINT(2 2)', 4326), 21, 21.0, 'bc')");
+        run(
+                "INSERT INTO \"ft1_group_by\" VALUES(8, ST_GeometryFromText('POINT(2 2)', 4326), 22, 22.0, 'cc')");
+    }
+
+    @Override
     protected void dropBuildingsTable() throws Exception {
         runSafe("DROP TABLE BUILDINGS_GROUP_BY_TESTS");
+    }
+
+    @Override
+    protected void dropFt1GroupByTable() throws Exception {
+        runSafe("DROP TABLE ft1_group_by");
+    }
+
+    @Override
+    public boolean supportsGeometryGroupBy() {
+        return true;
     }
 }

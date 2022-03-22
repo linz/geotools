@@ -19,6 +19,7 @@ package org.geotools.geopkg;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -72,10 +73,12 @@ import org.geotools.geopkg.mosaic.GeoPackageFormat;
 import org.geotools.geopkg.mosaic.GeoPackageReader;
 import org.geotools.image.test.ImageAssert;
 import org.geotools.jdbc.JDBCDataStore;
+import org.geotools.jdbc.SQLDialect;
 import org.geotools.jdbc.util.SqlUtil;
 import org.geotools.parameter.Parameter;
 import org.geotools.referencing.CRS;
 import org.geotools.referencing.crs.DefaultGeographicCRS;
+import org.geotools.util.NumberRange;
 import org.geotools.util.URLs;
 import org.geotools.util.factory.Hints;
 import org.junit.After;
@@ -96,6 +99,7 @@ import org.opengis.filter.FilterFactory;
 import org.opengis.filter.identity.Identifier;
 import org.opengis.parameter.GeneralParameterValue;
 import org.opengis.referencing.FactoryException;
+import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.sqlite.SQLiteConfig;
 
 public class GeoPackageTest {
@@ -159,22 +163,18 @@ public class GeoPackageTest {
         try (Connection cx = geopkg.getDataSource().getConnection();
                 Statement st = cx.createStatement();
                 ResultSet rs = st.executeQuery("PRAGMA application_id;")) {
-            assertEquals(rs.getInt(1), 0x47503130);
+            assertEquals(rs.getInt(1), GeoPackage.GPKG_120_APPID);
         } catch (Exception e) {
             fail(e.getMessage());
         }
     }
 
     void assertTableExists(String table) throws Exception {
-        Connection cx = geopkg.getDataSource().getConnection();
-        Statement st = cx.createStatement();
-        try {
+        try (Connection cx = geopkg.getDataSource().getConnection();
+                Statement st = cx.createStatement()) {
             st.execute(String.format("SELECT count(*) FROM %s;", table));
         } catch (Exception e) {
             fail(e.getMessage());
-        } finally {
-            st.close();
-            cx.close();
         }
     }
 
@@ -253,6 +253,29 @@ public class GeoPackageTest {
             }
         } catch (Exception e) {
             fail(e.getMessage());
+        }
+    }
+
+    @Test
+    public void canReadGeoPackageWithNonEpsgSrids() throws Exception {
+        // this geopackage uses srs_id = 84 with an authority of WEB MAP SERVICE CRS
+        // when the contents are create code gets down into decodeCRSFromResultset() to get the CRS.
+        File citiesSrs84 = new File("./src/test/resources/org/geotools/geopkg/cities_srs_84.gpkg");
+        try (GeoPackage citiesGpkg = new GeoPackage(citiesSrs84)) {
+            List<FeatureEntry> contents = citiesGpkg.features();
+            assertEquals(2, contents.size());
+            Integer expectedSrid = 84;
+            for (Entry content : contents) {
+                assertEquals(expectedSrid, content.getSrid());
+            }
+
+            // Now lets ensure we can access SRID:84 from the SQLDialect
+            SQLDialect dialect = citiesGpkg.dataStore().dialect;
+            try (Connection conn = citiesGpkg.connPool.getConnection()) {
+                assertTrue(
+                        CRS.equalsIgnoreMetadata(
+                                dialect.createCRS(84, conn), CRS.decode("EPSG:4326", true)));
+            }
         }
     }
 
@@ -988,7 +1011,7 @@ public class GeoPackageTest {
     }
 
     @Test
-    @SuppressWarnings("PMD.UseAssertEqualsInsteadOfAssertTrue")
+    @SuppressWarnings("PMD.SimplifiableTestAssertion")
     public void testIntegerTypes() throws Exception {
         // all types work in creation
         String typeName = "numericTypes";
@@ -1023,10 +1046,7 @@ public class GeoPackageTest {
     @Test
     public void testMetadata() throws Exception {
         // create a geopacakge from a shapefile
-        ShapefileDataStore shp = new ShapefileDataStore(setUpShapefile());
-        FeatureEntry entry = new FeatureEntry();
-        geopkg.add(entry, shp.getFeatureSource(), null);
-        assertTableExists("bugsites");
+        createBugSites();
 
         // grab the metadata extension, check it's initially empty
         GeoPkgMetadataExtension ext = geopkg.getExtension(GeoPkgMetadataExtension.class);
@@ -1061,11 +1081,7 @@ public class GeoPackageTest {
 
     @Test
     public void testMetadataReferences() throws Exception {
-        // create a geopacakge from a shapefile
-        ShapefileDataStore shp = new ShapefileDataStore(setUpShapefile());
-        FeatureEntry entry = new FeatureEntry();
-        geopkg.add(entry, shp.getFeatureSource(), null);
-        assertTableExists("bugsites");
+        createBugSites();
 
         // grab the metadata extension and add a couple of metadata entries
         GeoPkgMetadataExtension ext = geopkg.getExtension(GeoPkgMetadataExtension.class);
@@ -1109,5 +1125,108 @@ public class GeoPackageTest {
         // clean up
         ext.removeReference(reference);
         assertEquals(0, ext.getReferences(metadata).size());
+    }
+
+    @Test
+    public void testRangeExtension() throws Exception {
+        createBugSites();
+
+        // grab the metadata extension and add a couple of metadata entries
+        GeoPkgSchemaExtension ext = geopkg.getExtension(GeoPkgSchemaExtension.class);
+        String constraintName = "oneToTen";
+        DataColumnConstraint.Range<Double> range =
+                new DataColumnConstraint.Range<>(constraintName, NumberRange.create(1d, 10d));
+        ext.addConstraint(range);
+
+        DataColumnConstraint constraint = ext.getConstraint(constraintName);
+        assertEquals(range, constraint);
+    }
+
+    private void createBugSites() throws Exception {
+        // create a geopackage from a shapefile
+        ShapefileDataStore shp = new ShapefileDataStore(setUpShapefile());
+        FeatureEntry entry = new FeatureEntry();
+        geopkg.add(entry, shp.getFeatureSource(), null);
+        assertTableExists("bugsites");
+    }
+
+    // if the FC already is XY, then forceXY does nothing (should return same FC)
+    @Test
+    public void testForceXYAlreadyXY() throws Exception {
+
+        // standard EPSG:4326 in EAST_NORTH format (XY)
+        String wkt_xy =
+                "GEOGCS[\"WGS 84\", \n"
+                        + "  DATUM[\"World Geodetic System 1984\", \n"
+                        + "    SPHEROID[\"WGS 84\", 6378137.0, 298.257223563, AUTHORITY[\"EPSG\",\"7030\"]], \n"
+                        + "    AUTHORITY[\"EPSG\",\"6326\"]], \n"
+                        + "  PRIMEM[\"Greenwich\", 0.0, AUTHORITY[\"EPSG\",\"8901\"]], \n"
+                        + "  UNIT[\"degree\", 0.017453292519943295], \n"
+                        + "  AXIS[\"Geodetic latitude\", EAST], \n"
+                        + "  AXIS[\"Geodetic longitude\", NORTH], \n"
+                        + "  AUTHORITY[\"EPSG\",\"4326\"]]";
+
+        CoordinateReferenceSystem crs_yx = CRS.parseWKT(wkt_xy);
+        assertEquals(CRS.getAxisOrder(crs_yx), CRS.AxisOrder.EAST_NORTH);
+
+        SimpleFeatureType simpleFeatureTypeXY =
+                DataUtilities.createType("testcase", "id:String,pointProperty:Point:srid=4326");
+        simpleFeatureTypeXY =
+                DataUtilities.createSubType(simpleFeatureTypeXY, null, crs_yx); // set CRS
+
+        SimpleFeature sfXY =
+                DataUtilities.createFeature(simpleFeatureTypeXY, "fid1=test|POINT(0 1)");
+        SimpleFeatureCollection fcXY = DataUtilities.collection(sfXY);
+
+        SimpleFeatureCollection fcXY2 = GeoPackage.forceXY(fcXY);
+
+        assertEquals(
+                CRS.getAxisOrder(fcXY2.getSchema().getCoordinateReferenceSystem()),
+                CRS.AxisOrder.EAST_NORTH);
+        assertSame(fcXY2, fcXY);
+    }
+
+    // if underlying data is YX, result should be XY
+    @Test
+    public void testForceXYSimpleFlip() throws Exception {
+        // create a FeatureCollection that is advertised as YX
+        // standard EPSG:4326 in NORTH_EAST format (YX)
+        String wkt_yx =
+                "GEOGCS[\"WGS 84\", \n"
+                        + "  DATUM[\"World Geodetic System 1984\", \n"
+                        + "    SPHEROID[\"WGS 84\", 6378137.0, 298.257223563, AUTHORITY[\"EPSG\",\"7030\"]], \n"
+                        + "    AUTHORITY[\"EPSG\",\"6326\"]], \n"
+                        + "  PRIMEM[\"Greenwich\", 0.0, AUTHORITY[\"EPSG\",\"8901\"]], \n"
+                        + "  UNIT[\"degree\", 0.017453292519943295], \n"
+                        + "  AXIS[\"Geodetic longitude\", NORTH], \n"
+                        + "  AXIS[\"Geodetic latitude\", EAST], \n"
+                        + "  AUTHORITY[\"EPSG\",\"4326\"]]";
+        CoordinateReferenceSystem crs_yx = CRS.parseWKT(wkt_yx);
+        assertEquals(CRS.getAxisOrder(crs_yx), CRS.AxisOrder.NORTH_EAST);
+
+        SimpleFeatureType simpleFeatureTypeYX =
+                DataUtilities.createType("testcase", "id:String,pointProperty:Point:srid=4326");
+        simpleFeatureTypeYX =
+                DataUtilities.createSubType(simpleFeatureTypeYX, null, crs_yx); // set CRS
+
+        SimpleFeature sfYX =
+                DataUtilities.createFeature(simpleFeatureTypeYX, "fid1=test|POINT(0 1)");
+        SimpleFeatureCollection fcYX = DataUtilities.collection(sfYX);
+
+        // xform
+        SimpleFeatureCollection fcXY = GeoPackage.forceXY(fcYX);
+
+        assertEquals(
+                CRS.getAxisOrder(fcXY.getSchema().getCoordinateReferenceSystem()),
+                CRS.AxisOrder.EAST_NORTH);
+
+        SimpleFeature sfXY = fcXY.features().next();
+
+        // verify geometry is actually XY
+        Coordinate coordinate = ((Geometry) sfYX.getDefaultGeometry()).getCoordinate();
+        Coordinate coordinateYX = ((Geometry) sfXY.getDefaultGeometry()).getCoordinate();
+
+        assertEquals(coordinate.x, coordinateYX.y, 0);
+        assertEquals(coordinate.y, coordinateYX.x, 0);
     }
 }

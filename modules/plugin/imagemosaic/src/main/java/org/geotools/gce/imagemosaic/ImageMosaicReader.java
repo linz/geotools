@@ -19,8 +19,8 @@ package org.geotools.gce.imagemosaic;
 import it.geosolutions.imageio.maskband.DatasetLayout;
 import java.awt.Rectangle;
 import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -37,11 +37,11 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import javax.imageio.spi.ImageReaderSpi;
 import javax.media.jai.ImageLayout;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.filefilter.FileFilterUtils;
 import org.apache.commons.io.filefilter.IOFileFilter;
 import org.geotools.coverage.grid.GridCoverage2D;
 import org.geotools.coverage.grid.GridCoverageFactory;
@@ -68,6 +68,7 @@ import org.geotools.gce.imagemosaic.catalog.MultiLevelROIProviderMosaicFactory;
 import org.geotools.geometry.GeneralEnvelope;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.referencing.operation.transform.AffineTransform2D;
+import org.geotools.util.Converters;
 import org.geotools.util.URLs;
 import org.geotools.util.Utilities;
 import org.geotools.util.factory.Hints;
@@ -105,7 +106,6 @@ import org.opengis.referencing.operation.MathTransform;
  *     jar:file:foo.jar/bar.properties URLs
  * @since 2.3
  */
-@SuppressWarnings("rawtypes")
 public class ImageMosaicReader extends AbstractGridCoverage2DReader
         implements StructuredGridCoverage2DReader {
 
@@ -327,21 +327,7 @@ public class ImageMosaicReader extends AbstractGridCoverage2DReader
                 if (configuration == null) {
                     // this can be used to look for properties files that do NOT define a datastore
                     final File[] properties =
-                            parentDirectory.listFiles(
-                                    (FilenameFilter)
-                                            FileFilterUtils.and(
-                                                    FileFilterUtils.notFileFilter(
-                                                            FileFilterUtils.nameFileFilter(
-                                                                    "indexer.properties")),
-                                                    FileFilterUtils.and(
-                                                            FileFilterUtils.notFileFilter(
-                                                                    FileFilterUtils.nameFileFilter(
-                                                                            Utils
-                                                                                    .DATASTORE_PROPERTIES)),
-                                                            FileFilterUtils.makeFileOnly(
-                                                                    FileFilterUtils
-                                                                            .suffixFileFilter(
-                                                                                    ".properties")))));
+                            parentDirectory.listFiles(Utils.MOSAIC_PROPERTY_FILTER);
 
                     // Scan for MosaicConfigurationBeans from properties files
                     if (properties != null) {
@@ -385,7 +371,15 @@ public class ImageMosaicReader extends AbstractGridCoverage2DReader
                             ImageMosaicConfigHandler.createGranuleCatalogFromDatastore(
                                     parentDirectory, datastoreProperties, true, getHints());
                 } else {
-                    CatalogConfigurationBean bean = beans.get(0).getCatalogConfigurationBean();
+                    // We need to figure out if there is an heterogeneous mosaic in the list and use
+                    // it as reference. (Otherwise, read on heterogeneous coverages may not work
+                    // properly)
+                    MosaicConfigurationBean mosaicBean =
+                            beans.stream()
+                                    .filter(p -> p.getCatalogConfigurationBean().isHeterogeneous())
+                                    .findFirst()
+                                    .orElse(beans.get(0));
+                    CatalogConfigurationBean bean = mosaicBean.getCatalogConfigurationBean();
                     catalog =
                             GranuleCatalogFactory.createGranuleCatalog(
                                     sourceURL, bean, params, getCatalogHints(bean));
@@ -439,6 +433,8 @@ public class ImageMosaicReader extends AbstractGridCoverage2DReader
         Hints catalogHints = getHints();
         if (bean != null && bean.getUrlSourceSPIProvider() != null) {
             catalogHints = new Hints(catalogHints);
+            if (bean.isSkipExternalOverviews())
+                catalogHints.put(Hints.SKIP_EXTERNAL_OVERVIEWS, true);
             CogGranuleAccessProvider provider = new CogGranuleAccessProvider(bean);
             catalogHints.put(GranuleAccessProvider.GRANULE_ACCESS_PROVIDER, provider);
         }
@@ -1035,6 +1031,7 @@ public class ImageMosaicReader extends AbstractGridCoverage2DReader
                             source, false, "Specified file path does not exist"));
             return result;
         }
+        source = convertToElementType(source, resource);
         // Harvesting of the input source
         resource.harvest(defaultCoverage, source, hints, result, this);
         String coverage = defaultCoverage != null ? defaultCoverage : this.defaultName;
@@ -1044,6 +1041,20 @@ public class ImageMosaicReader extends AbstractGridCoverage2DReader
         rasterManager.initialize(true);
 
         return result;
+    }
+
+    private Object convertToElementType(Object source, HarvestedResource resource) {
+        if (source instanceof Collection) {
+            @SuppressWarnings("unchecked")
+            Collection<Object> collection = ((Collection<Object>) source);
+            source =
+                    collection.stream()
+                            .map(o -> Converters.convert(o, resource.getElementType()))
+                            .collect(Collectors.toList());
+        } else {
+            source = Converters.convert(source, resource.getElementType());
+        }
+        return source;
     }
 
     /** Simple method used for checking if the list contains a single object and it is a file */
@@ -1225,7 +1236,7 @@ public class ImageMosaicReader extends AbstractGridCoverage2DReader
         public ImageMosaicURLCollectionWalker(
                 ImageMosaicConfigHandler configHandler,
                 ImageMosaicEventHandlers eventHandler,
-                URLSourceSPIProvider urlSourceSPIProvider,
+                SourceSPIProviderFactory urlSourceSPIProvider,
                 Collection<URL> urls) {
             super(configHandler, eventHandler);
             imageMosaicUrlConsumer =
@@ -1261,6 +1272,103 @@ public class ImageMosaicReader extends AbstractGridCoverage2DReader
                     } else {
                         // SKIP and log
                         skip(url.toString());
+                    }
+                }
+
+                // close transaction
+                if (getStop()) {
+                    rollbackTransaction();
+                } else {
+                    commitTransaction();
+                }
+
+            } catch (IOException e) {
+                // Exception Logged
+                LOGGER.log(Level.WARNING, e.getMessage(), e);
+                try {
+                    // Rollback of the Transaction
+                    rollbackTransaction();
+                } catch (IOException e1) {
+                    throw new IllegalStateException(e);
+                }
+            } finally {
+                // close transaction
+                try {
+                    closeTransaction();
+                } catch (Exception e) {
+                    final String message = "Unable to close transaction" + e.getLocalizedMessage();
+                    if (LOGGER.isLoggable(Level.WARNING)) {
+                        LOGGER.log(Level.WARNING, message, e);
+                    }
+                    // notify listeners
+                    eventHandler.fireException(e);
+                }
+
+                // close indexing
+                try {
+                    configHandler.indexingPostamble(!getStop());
+                } catch (Exception e) {
+                    final String message = "Unable to close indexing" + e.getLocalizedMessage();
+                    if (LOGGER.isLoggable(Level.WARNING)) {
+                        LOGGER.log(Level.WARNING, message, e);
+                    }
+                    // notify listeners
+                    eventHandler.fireException(e);
+                }
+            }
+        }
+    }
+
+    /**
+     * This subclass of the {@link ImageMosaicWalker} cycles around a List of URIs and for each one
+     * calls the superclass handleElement() method.
+     */
+    static class ImageMosaicURICollectionWalker extends ImageMosaicWalker implements Runnable {
+
+        ImageMosaicURIFeatureConsumer.ImageMosaicURIConsumer imageMosaicUriConsumer;
+
+        /** Input list to walk on */
+        private Collection<URI> uris;
+
+        public ImageMosaicURICollectionWalker(
+                ImageMosaicConfigHandler configHandler,
+                ImageMosaicEventHandlers eventHandler,
+                SourceSPIProviderFactory uriSourceSPIProvider,
+                Collection<URI> uris) {
+            super(configHandler, eventHandler);
+            imageMosaicUriConsumer =
+                    new ImageMosaicURIFeatureConsumer.ImageMosaicURIConsumer(uriSourceSPIProvider);
+            this.uris = uris;
+        }
+
+        @Override
+        public void run() {
+            try {
+                // Initialization steps
+                configHandler.indexingPreamble();
+                startTransaction();
+
+                // Setting of the Collection size
+                setNumElements(uris.size());
+
+                // Creation of an Iterator on the input files
+                Iterator<URI> it = uris.iterator();
+
+                // Cycle on all the input files
+                while (it.hasNext()) {
+                    URI uri = it.next();
+
+                    // Stop the Harvesting if requested
+                    if (getStop()) {
+                        break;
+                    }
+
+                    // Check if the File has an absolute path
+                    if (imageMosaicUriConsumer.checkElement(uri, this)) {
+                        imageMosaicUriConsumer.handleElement(uri, this);
+                    } else {
+                        // SKIP and log
+                        skip(uri.toString());
                     }
                 }
 

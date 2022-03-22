@@ -24,7 +24,6 @@ import it.geosolutions.imageioimpl.plugins.cog.CogImageInputStreamSpi;
 import it.geosolutions.imageioimpl.plugins.cog.CogImageReaderSpi;
 import it.geosolutions.imageioimpl.plugins.cog.CogSourceSPIProvider;
 import java.io.IOException;
-import java.net.URL;
 import javax.imageio.spi.ImageInputStreamSpi;
 import javax.imageio.spi.ImageReaderSpi;
 import javax.imageio.stream.ImageInputStream;
@@ -38,7 +37,7 @@ import org.geotools.util.Utilities;
 import org.geotools.util.factory.Hints;
 
 /** GranuleAccessProvider for COG Granules. */
-class CogGranuleAccessProvider extends DefaultGranuleAccessProvider
+public class CogGranuleAccessProvider extends DefaultGranuleAccessProvider
         implements GranuleAccessProvider {
 
     private static final ImageReaderSpi DEFAULT_COG_IMAGE_READER_SPI = new CogImageReaderSpi();
@@ -56,7 +55,7 @@ class CogGranuleAccessProvider extends DefaultGranuleAccessProvider
     public CogGranuleAccessProvider(CatalogConfigurationBean bean) {
         // A Cog Provider will always have at least a streamSpi and an ImageReaderSpi
         this(getHints(bean));
-        URLSourceSPIProvider urlSourceSpiProvider = bean.getUrlSourceSPIProvider();
+        SourceSPIProviderFactory urlSourceSpiProvider = bean.getUrlSourceSPIProvider();
         if (urlSourceSpiProvider instanceof CogConfiguration) {
             cogConfig = (CogConfiguration) urlSourceSpiProvider;
         } else {
@@ -66,6 +65,7 @@ class CogGranuleAccessProvider extends DefaultGranuleAccessProvider
                             + urlSourceSpiProvider
                             + " has been found.");
         }
+        this.skipExternalOverviews = bean.isSkipExternalOverviews();
     }
 
     private static Hints getHints(CatalogConfigurationBean bean) {
@@ -89,6 +89,9 @@ class CogGranuleAccessProvider extends DefaultGranuleAccessProvider
             format = DEFAULT_COG_FORMAT;
         }
         hints.put(GranuleAccessProvider.SUGGESTED_FORMAT, format);
+        if (bean.isSkipExternalOverviews()) {
+            hints.put(Hints.SKIP_EXTERNAL_OVERVIEWS, true);
+        }
 
         hints.add(EXCLUDE_MOSAIC);
         return hints;
@@ -100,14 +103,15 @@ class CogGranuleAccessProvider extends DefaultGranuleAccessProvider
 
     @Override
     public void setGranuleInput(Object input) throws IOException {
-        this.inputUrl = (URL) input;
-        BasicAuthURI cogUri = cogConfig.createUri(inputUrl.toString());
+        BasicAuthURI cogUri = cogConfig.createUri(input.toString());
         String rangeReader = cogConfig.getRangeReader();
         if (rangeReader == null) {
             rangeReader = DEFAULT_RANGE_READER;
         }
-        this.input =
+        CogSourceSPIProvider sourceSPIProvider =
                 new CogSourceSPIProvider(cogUri, imageReaderSpi, imageInputStreamSpi, rangeReader);
+        this.input = sourceSPIProvider;
+        this.inputURL = sourceSPIProvider.getSourceUrl();
     }
 
     @Override
@@ -115,7 +119,9 @@ class CogGranuleAccessProvider extends DefaultGranuleAccessProvider
         if (ovrProvider == null) {
             SourceSPIProvider inputProvider = (SourceSPIProvider) input;
             spiHelper = new SpiHelper(inputProvider);
-            ovrProvider = new MaskOverviewProvider(null, inputProvider.getSourceUrl(), spiHelper);
+            ovrProvider =
+                    new MaskOverviewProvider(
+                            null, inputProvider.getSourceUrl(), spiHelper, skipExternalOverviews);
         }
         if (ovrProvider == null) {
             throw new IOException(
@@ -147,6 +153,7 @@ class CogGranuleAccessProvider extends DefaultGranuleAccessProvider
     public GranuleAccessProvider copyProviders() {
         CogGranuleAccessProvider provider = new CogGranuleAccessProvider(hints);
         provider.cogConfig = this.cogConfig;
+        provider.skipExternalOverviews = this.skipExternalOverviews;
         return provider;
     }
 }

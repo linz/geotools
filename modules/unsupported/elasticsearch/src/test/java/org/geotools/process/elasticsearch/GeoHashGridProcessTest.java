@@ -53,36 +53,33 @@ public class GeoHashGridProcessTest {
     @Before
     public void setup() throws JsonProcessingException {
         ObjectMapper mapper = new ObjectMapper();
+        byte[] aggregation1 =
+                mapper.writeValueAsBytes(
+                        ImmutableMap.of(
+                                "key",
+                                GeoHash.encodeHash(new LatLong(-89.9, -179.9), 1),
+                                "doc_count",
+                                10));
+        byte[] aggregation2 =
+                mapper.writeValueAsBytes(
+                        ImmutableMap.of(
+                                "key",
+                                GeoHash.encodeHash(new LatLong(0.1, 0.1), 1),
+                                "doc_count",
+                                10));
+        byte[] aggregation3 =
+                mapper.writeValueAsBytes(
+                        ImmutableMap.of(
+                                "key",
+                                GeoHash.encodeHash(new LatLong(89.9, 179.9), 1),
+                                "doc_count",
+                                10));
         features =
                 TestUtil.createAggregationFeatures(
                         ImmutableList.of(
-                                ImmutableMap.of(
-                                        "_aggregation",
-                                        mapper.writeValueAsBytes(
-                                                ImmutableMap.of(
-                                                        "key",
-                                                        GeoHash.encodeHash(
-                                                                new LatLong(-89.9, -179.9), 1),
-                                                        "doc_count",
-                                                        10))),
-                                ImmutableMap.of(
-                                        "_aggregation",
-                                        mapper.writeValueAsBytes(
-                                                ImmutableMap.of(
-                                                        "key",
-                                                        GeoHash.encodeHash(
-                                                                new LatLong(0.1, 0.1), 1),
-                                                        "doc_count",
-                                                        10))),
-                                ImmutableMap.of(
-                                        "_aggregation",
-                                        mapper.writeValueAsBytes(
-                                                ImmutableMap.of(
-                                                        "key",
-                                                        GeoHash.encodeHash(
-                                                                new LatLong(89.9, 179.9), 1),
-                                                        "doc_count",
-                                                        10)))));
+                                ImmutableMap.of("_aggregation", aggregation1),
+                                ImmutableMap.of("_aggregation", aggregation2),
+                                ImmutableMap.of("_aggregation", aggregation3)));
         fineDelta = 0.45;
         ff = CommonFactoryFinder.getFilterFactory(null);
         process = new GeoHashGridProcess();
@@ -197,6 +194,31 @@ public class GeoHashGridProcessTest {
                         height,
                         null);
         checkInternal(coverage, fineDelta);
+    }
+
+    /**
+     * StreamingRenderer does not necessarily include a BBOX filter in the query, as it uses the
+     * layer definition query. The area of interest is provided as part of the invertQuery
+     * parameters instead.
+     */
+    @Test
+    public void testInvertQueryNoBBOX() {
+        Filter filter = ff.bbox("geom", 0, 0, 0, 0, "EPSG:4326");
+        ReferencedEnvelope env = new ReferencedEnvelope(0, 1, 2, 3, DefaultGeographicCRS.WGS84);
+        Query query = new Query();
+        query.setFilter(filter);
+        Query queryOut = process.invertQuery(env, query, null);
+        assertEquals(ff.bbox("geom", 0, 2, 1, 3, "EPSG:4326"), queryOut.getFilter());
+    }
+
+    /** A NPE occurred when the filter did not contain a BBOX filter */
+    @Test
+    public void testInvertQueryNPE() {
+        ReferencedEnvelope env = new ReferencedEnvelope(0, 1, 2, 3, DefaultGeographicCRS.WGS84);
+        Query query = new Query();
+        query.setFilter(Filter.INCLUDE);
+        Query queryOut = process.invertQuery(env, query, null);
+        assertEquals(ff.bbox("", 0, 2, 1, 3, "EPSG:4326"), queryOut.getFilter());
     }
 
     @Test

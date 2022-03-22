@@ -17,7 +17,12 @@
 package org.geotools.gce.imagemosaic.catalog;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.geotools.coverage.grid.io.GranuleSource;
@@ -35,6 +40,7 @@ import org.geotools.gce.imagemosaic.Utils;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.util.SoftValueHashMap;
+import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Geometry;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
@@ -52,7 +58,7 @@ import org.opengis.geometry.BoundingBox;
  *     jar:file:foo.jar/bar.properties URLs
  * @since 2.5
  */
-class CachingDataStoreGranuleCatalog extends GranuleCatalog {
+public class CachingDataStoreGranuleCatalog extends GranuleCatalog {
 
     /** Logger. */
     private static final Logger LOGGER =
@@ -166,26 +172,68 @@ class CachingDataStoreGranuleCatalog extends GranuleCatalog {
 
         // visiting the features from the underlying store
         try (SimpleFeatureIterator fi = features.features()) {
-            while (fi.hasNext() && !visitor.isVisitComplete()) {
-                final SimpleFeature sf = fi.next();
+            Object executor = q.getHints().get(Hints.EXECUTOR_SERVICE);
+            if (executor instanceof ExecutorService) {
+                parallelGranuleVisit(visitor, intersectionGeometry, fi, (ExecutorService) executor);
+            } else {
+                sequentialGranuleVisit(visitor, intersectionGeometry, fi);
+            }
+        }
+    }
 
-                GranuleDescriptor granule = getGranuleDescriptor(sf);
+    private void parallelGranuleVisit(
+            GranuleCatalogVisitor visitor,
+            Geometry intersectionGeometry,
+            SimpleFeatureIterator fi,
+            ExecutorService executor) {
+        // first submit all visitors, in order, allowing them to load granules in parallel
+        List<Future<GranuleDescriptor>> futures = new ArrayList<>();
+        while (fi.hasNext() && !visitor.isVisitComplete()) {
+            final SimpleFeature sf = fi.next();
+            futures.add(executor.submit(() -> getGranuleDescriptor(sf)));
+        }
 
-                if (granule != null) {
-                    // check ROI inclusion
-                    final Geometry footprint = granule.getFootprint();
-                    if (intersectionGeometry == null
-                            || footprint == null
-                            || polygonOverlap(footprint, intersectionGeometry)) {
-                        visitor.visit(granule, sf);
-                    } else {
-                        if (LOGGER.isLoggable(Level.FINE)) {
-                            LOGGER.fine(
-                                    "Skipping granule "
-                                            + granule
-                                            + "\n since its ROI does not intersect the requested area");
-                        }
-                    }
+        // then grab them one by one, in the same order as the features, to preserve the query sort
+        for (Future<GranuleDescriptor> future : futures) {
+            try {
+                GranuleDescriptor granule = future.get();
+                visitGranule(visitor, intersectionGeometry, granule);
+            } catch (ExecutionException | InterruptedException e) {
+                // the sequential one does not catch exceptions either
+                throw new RuntimeException("Unexpected exception occurred loading granules", e);
+            }
+        }
+    }
+
+    private void sequentialGranuleVisit(
+            GranuleCatalogVisitor visitor,
+            Geometry intersectionGeometry,
+            SimpleFeatureIterator fi) {
+        while (fi.hasNext() && !visitor.isVisitComplete()) {
+            final SimpleFeature sf = fi.next();
+
+            GranuleDescriptor granule = getGranuleDescriptor(sf);
+            visitGranule(visitor, intersectionGeometry, granule);
+        }
+    }
+
+    private void visitGranule(
+            GranuleCatalogVisitor visitor,
+            Geometry intersectionGeometry,
+            GranuleDescriptor granule) {
+        if (granule != null) {
+            // check ROI inclusion
+            final Geometry footprint = granule.getFootprint();
+            if (intersectionGeometry == null
+                    || footprint == null
+                    || polygonOverlap(footprint, intersectionGeometry)) {
+                visitor.visit(granule, granule.getOriginator());
+            } else {
+                if (LOGGER.isLoggable(Level.FINE)) {
+                    LOGGER.fine(
+                            "Skipping granule "
+                                    + granule
+                                    + "\n since its ROI does not intersect the requested area");
                 }
             }
         }
@@ -226,7 +274,7 @@ class CachingDataStoreGranuleCatalog extends GranuleCatalog {
         return granule;
     }
 
-    private boolean polygonOverlap(Geometry g1, Geometry g2) {
+    protected boolean polygonOverlap(Geometry g1, Geometry g2) {
         // TODO: try to use relate instead
         Geometry intersection = g1.intersection(g2);
         return intersection != null && intersection.getDimension() == 2;

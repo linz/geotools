@@ -69,7 +69,9 @@ import org.geotools.feature.simple.SimpleFeatureBuilder;
 import org.geotools.feature.visitor.CountVisitor;
 import org.geotools.feature.visitor.GroupByVisitor;
 import org.geotools.feature.visitor.LimitingVisitor;
+import org.geotools.feature.visitor.UniqueCountVisitor;
 import org.geotools.filter.FilterCapabilities;
+import org.geotools.filter.visitor.ExpressionTypeVisitor;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.jdbc.JoinInfo.JoinPart;
 import org.geotools.referencing.CRS;
@@ -78,6 +80,7 @@ import org.geotools.util.SoftValueHashMap;
 import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.opengis.feature.FeatureVisitor;
 import org.opengis.feature.simple.SimpleFeature;
@@ -1316,9 +1319,14 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
      * condition that allows to use spatial index statistics to compute the table bounds)
      */
     private boolean isFullBoundsQuery(Query query, SimpleFeatureType schema) {
-
         if (query == null) {
             return true;
+        }
+        if (!query.isMaxFeaturesUnlimited()) {
+            return false; // there is a limit
+        }
+        if (query.getStartIndex() != null && query.getStartIndex() > 0) {
+            return false; // there is an offset
         }
         if (!Filter.INCLUDE.equals(query.getFilter())) {
             return false;
@@ -1387,7 +1395,7 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
         // check if group by is supported by the underlying store
         if (isGroupByVisitor(visitor)
                 && (!dialect.isGroupBySupported()
-                        || !isSupportedGroupBy((GroupByVisitor) visitor))) {
+                        || !isSupportedGroupBy(featureType, (GroupByVisitor) visitor))) {
             return null;
         }
         // try to match the visitor with an aggregate function
@@ -1461,7 +1469,12 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
                     } else {
                         results.add(
                                 extractValuesFromResultSet(
-                                        rs, groupByExpressions.size(), converter));
+                                        cx,
+                                        featureType,
+                                        rs,
+                                        groupByExpressions,
+                                        converter,
+                                        query.getHints()));
                     }
                 }
             } finally {
@@ -1486,8 +1499,24 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
      * Checks if the groupBy is a supported one, that is, if it's possible to turn to SQL the
      * various {@link Expression} it's using
      */
-    private boolean isSupportedGroupBy(GroupByVisitor visitor) {
-        return visitor.getGroupByAttributes().stream().allMatch(xp -> fullySupports(xp));
+    private boolean isSupportedGroupBy(SimpleFeatureType featureType, GroupByVisitor visitor) {
+        return visitor.getGroupByAttributes().stream()
+                .allMatch(
+                        xp -> {
+                            if (!fullySupports(xp)) return false;
+
+                            // Geometry attributes require a GeometryDescriptor to be encoded and
+                            // read back,
+                            // cannot do that with a generic expression
+                            Class type =
+                                    (Class) xp.accept(new ExpressionTypeVisitor(featureType), null);
+                            if (type == null || !Geometry.class.isAssignableFrom(type)) return true;
+
+                            // the expression is a geometry, check it's an actual known attribute,
+                            // and that the database can group on geometries
+                            return getGeometryDescriptor(featureType, xp) != null
+                                    && dialect.canGroupOnGeometry();
+                        });
     }
 
     /**
@@ -1610,13 +1639,26 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
      * Helper method that translate the result set to the appropriate group by visitor result format
      */
     protected GroupByVisitor.GroupByRawResult extractValuesFromResultSet(
+            Connection cx,
+            SimpleFeatureType featureType,
             ResultSet resultSet,
-            int numberOfGroupByAttributes,
-            java.util.function.Function<Object, Object> converter)
-            throws SQLException {
+            List<Expression> groupBy,
+            java.util.function.Function<Object, Object> converter,
+            Hints hints)
+            throws SQLException, IOException {
         List<Object> groupByValues = new ArrayList<>();
+        int numberOfGroupByAttributes = groupBy.size();
         for (int i = 0; i < numberOfGroupByAttributes; i++) {
-            Object result = resultSet.getObject(i + 1);
+            GeometryDescriptor gd = getGeometryDescriptor(featureType, groupBy.get(i));
+            Object result;
+            if (gd != null) {
+                result =
+                        dialect.decodeGeometryValue(
+                                gd, resultSet, i + 1, new GeometryFactory(), cx, hints);
+            } else {
+                result = resultSet.getObject(i + 1);
+            }
+
             groupByValues.add(result);
         }
         Object aggregated = resultSet.getObject(numberOfGroupByAttributes + 1);
@@ -3206,8 +3248,20 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
 
         for (int i = 0; i < descriptors.size(); i++) {
             AttributeDescriptor ad = descriptors.get(i);
+            Object nativeTypeName = ad.getUserData().get(JDBC_NATIVE_TYPENAME);
+            if (nativeTypeName instanceof String) {
+                sqlTypeNames[i] = (String) nativeTypeName;
+                continue;
+            }
+
             Class clazz = ad.getType().getBinding();
-            Integer sqlType = dialect.getSQLType(ad);
+            Integer sqlType;
+            Object nativeType = ad.getUserData().get(JDBC_NATIVE_TYPE);
+            if (nativeType instanceof Integer) {
+                sqlType = (Integer) nativeType;
+            } else {
+                sqlType = dialect.getSQLType(ad);
+            }
 
             if (sqlType == null) {
                 sqlType = getMapping(clazz);
@@ -3221,7 +3275,7 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
 
             sqlTypes[i] = sqlType;
 
-            // if this a geometric type, get the name from teh dialect
+            // if this a geometric type, get the name from the dialect
             // if ( attributeType instanceof GeometryDescriptor ) {
             if (Geometry.class.isAssignableFrom(clazz)) {
                 String sqlTypeName = dialect.getGeometryTypeName(sqlType);
@@ -3920,7 +3974,13 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
                     // we encode all the group by attributes as columns names
                     int i = 1;
                     for (Expression expression : groupByExpressions) {
-                        sql.append(filterToSQL.encodeToString(expression));
+                        GeometryDescriptor gd = getGeometryDescriptor(featureType, expression);
+                        if (gd != null) {
+                            dialect.encodeGeometryColumn(
+                                    gd, null, getDescriptorSRID(gd), null, sql);
+                        } else {
+                            sql.append(filterToSQL.encodeToString(expression));
+                        }
                         // if we are using complex group by, we have to given them an alias
                         if (groupByComplexExpressions) {
                             sql.append(" as ").append(getAggregateExpressionAlias(i++));
@@ -3979,10 +4039,11 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
         } else if (queryLimitOffset) {
             applyLimitOffset(sql, query.getStartIndex(), query.getMaxFeatures());
         }
-
+        boolean isUniqueCount = visitor instanceof UniqueCountVisitor;
         // if the limits were in query or there is a group by with complex expressions
+        // or there is a UniqueCountVisitor
         // we need to roll what was built so far in a sub-query
-        if (queryLimitOffset || groupByComplexExpressions) {
+        if (queryLimitOffset || groupByComplexExpressions || isUniqueCount) {
             StringBuffer sql2 = new StringBuffer("SELECT ");
             try {
                 if (groupByExpressions != null && !groupByExpressions.isEmpty()) {
@@ -4002,19 +4063,16 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
                 throw new RuntimeException("Failed to encode group by expressions", e);
             }
             FilterToSQL filterToSQL = getFilterToSQL(featureType);
-            if (groupByComplexExpressions) {
-                if ("count".equals(function)) {
-                    sql2.append("count(*)");
-                } else {
-                    sql2.append(function).append("(").append("gt_agg_src").append(")");
-                }
-            } else {
-                encodeFunction(function, expr, sql2, filterToSQL);
-            }
+            boolean countQuery =
+                    isUniqueCount || (groupByComplexExpressions && "count".equals(function));
+            if (countQuery) sql2.append("count(*)");
+            else if (groupByComplexExpressions)
+                sql2.append(function).append("(").append("gt_agg_src").append(")");
+            else encodeFunction(function, expr, sql2, filterToSQL);
             toSQL.add(filterToSQL);
             sql2.append(" AS gt_result_");
             sql2.append(" FROM (");
-            sql.insert(0, sql2.toString());
+            sql.insert(0, sql2);
             sql.append(") gt_limited_");
         }
 
@@ -4026,6 +4084,19 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
         applySearchHints(featureType, query, sql);
 
         return toSQL;
+    }
+
+    /**
+     * Returns a GeometryDescriptor backing the specified expression, if it's a PropertyName
+     * matching a geometry column in the table. Null otherwise.
+     */
+    private GeometryDescriptor getGeometryDescriptor(
+            SimpleFeatureType featureType, Expression expression) {
+        if (!(expression instanceof PropertyName)) return null;
+        PropertyName pn = (PropertyName) expression;
+        AttributeDescriptor ad = featureType.getDescriptor(pn.getPropertyName());
+        if (ad instanceof GeometryDescriptor) return (GeometryDescriptor) ad;
+        return null;
     }
 
     private String getAggregateExpressionAlias(int idx) {

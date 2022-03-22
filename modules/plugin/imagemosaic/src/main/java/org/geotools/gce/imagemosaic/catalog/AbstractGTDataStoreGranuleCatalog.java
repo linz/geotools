@@ -21,11 +21,13 @@ import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.imageio.spi.IIORegistry;
 import javax.imageio.spi.ImageInputStreamSpi;
 import javax.imageio.spi.ImageReaderSpi;
 import org.geotools.coverage.grid.io.AbstractGridFormat;
@@ -50,6 +52,7 @@ import org.geotools.gce.imagemosaic.GranuleDescriptor;
 import org.geotools.gce.imagemosaic.ImageMosaicReader;
 import org.geotools.gce.imagemosaic.PathType;
 import org.geotools.gce.imagemosaic.Utils;
+import org.geotools.util.Converters;
 import org.geotools.util.Utilities;
 import org.geotools.util.factory.GeoTools;
 import org.geotools.util.factory.Hints;
@@ -126,11 +129,7 @@ abstract class AbstractGTDataStoreGranuleCatalog extends GranuleCatalog {
             this.pathType = (PathType) params.get(Utils.Prop.PATH_TYPE);
             this.locationAttribute = (String) params.get(Utils.Prop.LOCATION_ATTRIBUTE);
             final String temp = (String) params.get(Utils.Prop.SUGGESTED_SPI);
-            this.suggestedRasterSPI =
-                    temp != null
-                            ? (ImageReaderSpi)
-                                    Class.forName(temp).getDeclaredConstructor().newInstance()
-                            : null;
+            this.suggestedRasterSPI = temp != null ? getImageReaderSpi(temp) : null;
             final String temp2 = (String) params.get(Utils.Prop.SUGGESTED_FORMAT);
             this.suggestedFormat =
                     temp2 != null
@@ -150,6 +149,14 @@ abstract class AbstractGTDataStoreGranuleCatalog extends GranuleCatalog {
             if (params.containsKey(Utils.Prop.WRAP_STORE)) {
                 this.wrapstore = (Boolean) params.get(Utils.Prop.WRAP_STORE);
             }
+            if (params.containsKey(Utils.Prop.SKIP_EXTERNAL_OVERVIEWS)) {
+                // depending on the code path, the value may come as a string (initialize from
+                // datastore) or boolean (index and create a shapefile)
+                this.hints.put(
+                        Hints.SKIP_EXTERNAL_OVERVIEWS,
+                        Converters.convert(
+                                params.get(Utils.Prop.SKIP_EXTERNAL_OVERVIEWS), Boolean.class));
+            }
 
             initTileIndexStore(params, create, spi);
         } catch (Throwable e) {
@@ -160,6 +167,18 @@ abstract class AbstractGTDataStoreGranuleCatalog extends GranuleCatalog {
             this.tracer = new Throwable();
             this.tracer.fillInStackTrace();
         }
+    }
+
+    static ImageReaderSpi getImageReaderSpi(String className) {
+        Iterator<ImageReaderSpi> serviceProviders =
+                IIORegistry.lookupProviders(ImageReaderSpi.class);
+        while (serviceProviders.hasNext()) {
+            ImageReaderSpi serviceProvider = serviceProviders.next();
+            if (serviceProvider.getClass().getName() == className) {
+                return serviceProvider;
+            }
+        }
+        return null;
     }
 
     protected void initializeTypeNames(final Properties params) throws IOException {
@@ -378,6 +397,7 @@ abstract class AbstractGTDataStoreGranuleCatalog extends GranuleCatalog {
     }
 
     @Override
+    @SuppressWarnings("PMD.UseTryWithResources") // transaction is not necessarily created here
     public int removeGranules(Query query, Transaction transaction) {
         Utilities.ensureNonNull("query", query);
         query = mergeHints(query);

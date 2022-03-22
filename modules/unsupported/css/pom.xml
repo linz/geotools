@@ -8,7 +8,7 @@
   <parent>
     <groupId>org.geotools</groupId>
     <artifactId>unsupported</artifactId>
-    <version>26-SNAPSHOT</version>
+    <version>27-SNAPSHOT</version>
   </parent>
 
   <!-- =========================================================== -->
@@ -44,6 +44,11 @@
       </roles>
     </developer>
   </developers>
+
+  <properties>
+    <!-- This is needed by Parboiled generated code, see https://github.com/sirthias/parboiled/issues/175 -->
+    <test.otherJVMParams>--add-opens=java.base/java.lang=ALL-UNNAMED</test.otherJVMParams>
+  </properties>
 
   <dependencies>
     <dependency>

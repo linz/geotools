@@ -44,6 +44,7 @@ import org.geotools.data.wfs.internal.GetParser;
 import org.geotools.data.wfs.internal.WFSClient;
 import org.geotools.data.wfs.internal.WFSConfig;
 import org.geotools.factory.CommonFactoryFinder;
+import org.geotools.feature.FeatureTypes;
 import org.geotools.feature.SchemaException;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.geometry.jts.ReferencedEnvelope;
@@ -199,9 +200,13 @@ class WFSFeatureSource extends ContentFeatureSource {
         GetFeatureRequest request = createGetFeature(query, ResultType.HITS);
 
         GetFeatureResponse response = client.issueRequest(request);
-        GetParser<SimpleFeature> featureParser = response.getFeatures(null);
-        int resultCount = featureParser.getNumberOfFeatures();
-        return resultCount;
+        try {
+            GetParser<SimpleFeature> featureParser = response.getFeatures(null);
+            int resultCount = featureParser.getNumberOfFeatures();
+            return resultCount;
+        } finally {
+            response.dispose();
+        }
     }
 
     /** Invert axis order in the given query filter, if needed. */
@@ -282,7 +287,8 @@ class WFSFeatureSource extends ContentFeatureSource {
         GeometryFactory geometryFactory = findGeometryFactory(localQuery.getHints());
         GetParser<SimpleFeature> features = response.getSimpleFeatures(geometryFactory);
 
-        FeatureReader<SimpleFeatureType, SimpleFeature> reader = new WFSFeatureReader(features);
+        FeatureReader<SimpleFeatureType, SimpleFeature> reader =
+                new WFSFeatureReader(features, response);
 
         if (request.getUnsupportedFilter() != null
                 && request.getUnsupportedFilter() != Filter.INCLUDE) {
@@ -334,8 +340,8 @@ class WFSFeatureSource extends ContentFeatureSource {
             GetFeatureRequest request) {
         FeatureReader<SimpleFeatureType, SimpleFeature> tmp = reader;
         if (query.getCoordinateSystem() != null
-                && !query.getCoordinateSystem()
-                        .equals(reader.getFeatureType().getCoordinateReferenceSystem())) {
+                && FeatureTypes.shouldReproject(
+                        reader.getFeatureType(), query.getCoordinateSystem())) {
             if (request.getSrsName() != null) {
                 try {
                     reader =

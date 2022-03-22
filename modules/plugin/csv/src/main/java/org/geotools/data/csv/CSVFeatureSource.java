@@ -26,7 +26,6 @@ import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 
-@SuppressWarnings("unchecked")
 public class CSVFeatureSource extends ContentFeatureSource {
 
     public CSVFeatureSource(CSVDataStore datastore) {
@@ -65,16 +64,15 @@ public class CSVFeatureSource extends ContentFeatureSource {
 
     @Override
     protected int getCountInternal(Query query) throws IOException {
-        FeatureReader<SimpleFeatureType, SimpleFeature> featureReader = getReaderInternal(query);
-        int n = 0;
-        try {
-            for (n = 0; featureReader.hasNext(); n++) {
+        try (FeatureReader<SimpleFeatureType, SimpleFeature> featureReader =
+                getReaderInternal(query)) {
+            int n = 0;
+            while (featureReader.hasNext()) {
                 featureReader.next();
+                n++;
             }
-        } finally {
-            featureReader.close();
+            return n;
         }
-        return n;
     }
 
     @Override

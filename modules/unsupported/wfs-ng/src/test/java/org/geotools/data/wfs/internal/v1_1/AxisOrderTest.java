@@ -104,7 +104,7 @@ public class AxisOrderTest {
     }
 
     @Test
-    @SuppressWarnings("PMD.UseAssertEqualsInsteadOfAssertTrue")
+    @SuppressWarnings("PMD.SimplifiableTestAssertion")
     public void testGetFeatureWithEastNorthAxisOrderFilter() throws Exception {
         final Filter bbox =
                 ff.bbox("the_geom", 4623055.0, 815134.0, 4629904.0, 820740.0, "EPSG:3857");
@@ -135,7 +135,7 @@ public class AxisOrderTest {
     }
 
     @Test
-    @SuppressWarnings("PMD.UseAssertEqualsInsteadOfAssertTrue")
+    @SuppressWarnings("PMD.SimplifiableTestAssertion")
     public void testGetFeatureWithNorthEastAxisOrderFilter() throws Exception {
         TestWFSClient wfs = createWFSClient();
 
@@ -172,7 +172,7 @@ public class AxisOrderTest {
     }
 
     @Test
-    @SuppressWarnings("PMD.UseAssertEqualsInsteadOfAssertTrue")
+    @SuppressWarnings("PMD.SimplifiableTestAssertion")
     public void testGetFeatureWithCompliantAxisOrderFilter() throws Exception {
         final Filter bbox =
                 ff.bbox("the_geom", 4623055.0, 815134.0, 4629904.0, 820740.0, "EPSG:3857");
@@ -298,9 +298,9 @@ public class AxisOrderTest {
 
     private static SimpleFeature iterate(SimpleFeatureCollection features, int expectedSize) {
         int size = 0;
-        SimpleFeatureIterator reader = features.features();
+
         SimpleFeature sf = null;
-        try {
+        try (SimpleFeatureIterator reader = features.features()) {
             while (reader.hasNext()) {
                 if (sf == null) {
                     sf = reader.next();
@@ -309,8 +309,6 @@ public class AxisOrderTest {
                 }
                 size++;
             }
-        } finally {
-            reader.close();
         }
 
         assertEquals(expectedSize, size);

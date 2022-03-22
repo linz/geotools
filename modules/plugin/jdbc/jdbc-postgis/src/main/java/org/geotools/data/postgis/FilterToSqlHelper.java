@@ -26,6 +26,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -38,6 +39,7 @@ import org.geotools.filter.LengthFunction;
 import org.geotools.filter.LiteralExpressionImpl;
 import org.geotools.filter.function.DateDifferenceFunction;
 import org.geotools.filter.function.FilterFunction_area;
+import org.geotools.filter.function.FilterFunction_buffer;
 import org.geotools.filter.function.FilterFunction_equalTo;
 import org.geotools.filter.function.FilterFunction_strConcat;
 import org.geotools.filter.function.FilterFunction_strEndsWith;
@@ -194,6 +196,9 @@ class FilterToSqlHelper {
 
             // compare functions
             caps.addType(FilterFunction_equalTo.class);
+
+            // one geometry function (to support testing, but otherwise fully functional)
+            caps.addType(FilterFunction_buffer.class);
         }
         // native filter support
         caps.addType(NativeFilter.class);
@@ -518,12 +523,30 @@ class FilterToSqlHelper {
         if (function instanceof DateDifferenceFunction) {
             Expression d1 = getParameter(function, 0, true);
             Expression d2 = getParameter(function, 1, true);
-            // extract epoch returns seconds, DateDifference is defined in ms instead
+
+            List<Expression> params = function.getParameters();
+            // extract epoch returns seconds, DateDifference can be defined in
+            // a different time unit instead (ms as default).
+            double multiplyingFactor = 1000;
+            if (params.size() == 3) {
+                Expression expression = getParameter(function, 2, false);
+                if (expression instanceof Literal) {
+                    TimeUnit timeUnit = expression.evaluate(null, TimeUnit.class);
+                    if (timeUnit != TimeUnit.MILLISECONDS) {
+                        // Let's identify the multiplying factor to go from seconds to the
+                        // target time unit.
+                        // Doing an inverse math since convert will return 0 when converting
+                        // smaller units (i.e. 1 second) to bigger units (i.e. days)
+                        multiplyingFactor = 1d / TimeUnit.SECONDS.convert(1, timeUnit);
+                    }
+                }
+            }
+
             out.write("(extract(epoch from ");
             d1.accept(delegate, java.util.Date.class);
             out.write("::timestamp - ");
             d2.accept(delegate, java.util.Date.class);
-            out.write(") * 1000)");
+            out.write(") * " + multiplyingFactor + ")");
         } else if (function instanceof FilterFunction_area) {
             Expression s1 = getParameter(function, 0, true);
             out.write("ST_Area(");
@@ -619,12 +642,24 @@ class FilterToSqlHelper {
             out.write(")");
         } else if (function instanceof JsonPointerFunction) {
             encodeJsonPointer(function, extraData);
+        } else if (function instanceof FilterFunction_buffer) {
+            encodeBuffer(function, extraData);
         } else {
             // function not supported
             return false;
         }
 
         return true;
+    }
+
+    private void encodeBuffer(Function function, Object extraData) throws IOException {
+        Expression source = getParameter(function, 0, true);
+        Expression distance = getParameter(function, 1, true);
+        out.write("ST_Buffer(");
+        source.accept(delegate, extraData);
+        out.write(", ");
+        distance.accept(delegate, extraData);
+        out.write(")");
     }
 
     private void encodeJsonPointer(Function jsonPointer, Object extraData) throws IOException {

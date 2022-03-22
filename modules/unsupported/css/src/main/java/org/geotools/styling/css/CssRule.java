@@ -323,8 +323,7 @@ public class CssRule {
         List<CssRule> nestedByZIndex = Collections.emptyList();
         if (nestedRules != null) {
             nestedByZIndex =
-                    nestedRules
-                            .stream()
+                    nestedRules.stream()
                             .map(r -> r.getSubRuleByZIndex(zIndex, zIndexMode))
                             .filter(r -> r != null)
                             .collect(Collectors.toList());
@@ -395,7 +394,7 @@ public class CssRule {
                 }
             }
         }
-        // if we did not find the z-index property, the only z-index is teh default one (which is
+        // if we did not find the z-index property, the only z-index is the default one (which is
         if (zIndexes.isEmpty()) {
             zIndexes.add(null);
         }

@@ -1070,6 +1070,7 @@ public class PostGISDialect extends BasicSQLDialect {
         overrides.put(Types.VARCHAR, "VARCHAR");
         overrides.put(Types.BOOLEAN, "BOOL");
         overrides.put(Types.BLOB, "BYTEA");
+        overrides.put(Types.CLOB, "TEXT");
     }
 
     @Override
@@ -1561,5 +1562,10 @@ public class PostGISDialect extends BasicSQLDialect {
     @Override
     public String[] getDesiredTablesType() {
         return new String[] {"TABLE", "VIEW", "MATERIALIZED VIEW", "SYNONYM", "PARTITIONED TABLE"};
+    }
+
+    @Override
+    public boolean canGroupOnGeometry() {
+        return true;
     }
 }

@@ -1074,7 +1074,6 @@ public class AuthorityFactoryAdapter extends AbstractAuthorityFactory implements
      * @throws IllegalArgumentException if the specified {@code type} is invalid.
      * @throws FactoryException if no suitable factory were found.
      */
-    @SuppressWarnings("unchecked")
     <T extends AuthorityFactory> T getAuthorityFactory(final Class<T> type, final String code)
             throws FactoryException {
         final AuthorityFactory f;
@@ -1254,6 +1253,7 @@ public class AuthorityFactoryAdapter extends AbstractAuthorityFactory implements
     }
 
     /** Returns {@code true} if the {@link #toBackingFactoryCode} method is overriden. */
+    @SuppressWarnings("ReturnValueIgnored")
     final boolean isCodeMethodOverriden() {
         final Class<?>[] arguments = {String.class};
         for (Class<?> type = getClass();

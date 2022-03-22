@@ -375,6 +375,7 @@ public class MySQLDialect extends SQLDialect {
     @Override
     public void registerSqlTypeToSqlTypeNameOverrides(Map<Integer, String> overrides) {
         overrides.put(Types.BOOLEAN, "BOOL");
+        overrides.put(Types.CLOB, "TEXT");
     }
 
     @Override
@@ -397,7 +398,7 @@ public class MySQLDialect extends SQLDialect {
     public void postCreateTable(String schemaName, SimpleFeatureType featureType, Connection cx)
             throws SQLException, IOException {
 
-        // create teh geometry_columns table if necessary
+        // create the geometry_columns table if necessary
         DatabaseMetaData md = cx.getMetaData();
         ResultSet rs =
                 md.getTables(
@@ -594,5 +595,10 @@ public class MySQLDialect extends SQLDialect {
             dataStore.closeSafe(st);
             dataStore.closeSafe(cx);
         }
+    }
+
+    @Override
+    public boolean canGroupOnGeometry() {
+        return true;
     }
 }

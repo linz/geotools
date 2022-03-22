@@ -54,7 +54,7 @@ import si.uom.SI;
  * @author Martin Desruisseaux (IRD)
  */
 // code is using equals with extra parameters and semantics compared to the built-in equals
-@SuppressWarnings("PMD.UseAssertEqualsInsteadOfAssertTrue")
+@SuppressWarnings("PMD.SimplifiableTestAssertion")
 public final class PredefinedObjectsTest {
     /** Tests {@link DefaultCoordinateSystemAxis} constants. */
     @Test
@@ -270,6 +270,7 @@ public final class PredefinedObjectsTest {
     }
 
     /** Test the serialization of the given object. */
+    @SuppressWarnings("BanSerializableRead")
     private static void serialize(final Object object) throws IOException, ClassNotFoundException {
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
         final ObjectOutputStream outs = new ObjectOutputStream(out);

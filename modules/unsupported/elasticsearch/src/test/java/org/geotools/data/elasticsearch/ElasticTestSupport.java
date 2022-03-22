@@ -50,15 +50,22 @@ import org.testcontainers.elasticsearch.ElasticsearchContainer;
 
 public class ElasticTestSupport {
 
-    private static final String IMAGE = "docker.elastic.co/elasticsearch/elasticsearch-oss";
+    private static final String IMAGE_PROPERTY_NAME = "elastic.test.image";
+
+    /** The pure Apache licensed version */
+    private static final String DEFAULT_IMAGE = "docker.elastic.co/elasticsearch/elasticsearch-oss";
 
     private static final String VERSION_PROPERTY_NAME = "elastic.test.version";
+
+    /** Last version provided on the OSS build */
+    private static final String DEFAULT_VERSION = "7.10.2";
 
     private static ElasticsearchContainer elasticsearch;
 
     static {
-        elasticsearch =
-                new ElasticsearchContainer(IMAGE + ":" + System.getProperty(VERSION_PROPERTY_NAME));
+        String image = System.getProperty(IMAGE_PROPERTY_NAME, DEFAULT_IMAGE);
+        String version = System.getProperty(VERSION_PROPERTY_NAME, DEFAULT_VERSION);
+        elasticsearch = new ElasticsearchContainer(image + ":" + version);
         elasticsearch.start();
     }
 
@@ -164,37 +171,38 @@ public class ElasticTestSupport {
     }
 
     private void indexDocuments(String status) throws IOException {
-        final InputStream inputStream = ClassLoader.getSystemResourceAsStream(TEST_FILE);
-        if (inputStream != null) {
-            try (Scanner scanner = new Scanner(inputStream)) {
-                scanner.useDelimiter(System.lineSeparator());
-                final StringBuilder builder = new StringBuilder();
-                while (scanner.hasNext()) {
-                    final String line = scanner.next();
-                    if (!line.startsWith("#")) {
-                        builder.append(line);
+        try (InputStream inputStream = ClassLoader.getSystemResourceAsStream(TEST_FILE)) {
+            if (inputStream != null) {
+                try (Scanner scanner = new Scanner(inputStream)) {
+                    scanner.useDelimiter(System.lineSeparator());
+                    final StringBuilder builder = new StringBuilder();
+                    while (scanner.hasNext()) {
+                        final String line = scanner.next();
+                        if (!line.startsWith("#")) {
+                            builder.append(line);
+                        }
                     }
-                }
-                final Map<String, Object> content = mapReader.readValue(builder.toString());
-                @SuppressWarnings("unchecked")
-                final List<Map<String, Object>> features =
-                        (List<Map<String, Object>>) content.get("features");
-                for (final Map<String, Object> featureSource : features) {
-                    if (featureSource.containsKey("status_s")
-                            && featureSource.get("status_s").equals(status)) {
-                        final String id =
-                                featureSource.containsKey("id")
-                                        ? (String) featureSource.get("id")
-                                        : null;
-                        final String typeName = client.getVersion() < 7 ? TYPE_NAME : "_doc";
-                        performRequest(
-                                "POST", "/" + indexName + "/" + typeName + "/" + id, featureSource);
+                    final Map<String, Object> content = mapReader.readValue(builder.toString());
+                    @SuppressWarnings("unchecked")
+                    final List<Map<String, Object>> features =
+                            (List<Map<String, Object>>) content.get("features");
+                    for (final Map<String, Object> featureSource : features) {
+                        if (featureSource.containsKey("status_s")
+                                && featureSource.get("status_s").equals(status)) {
+                            final String id =
+                                    featureSource.containsKey("id")
+                                            ? (String) featureSource.get("id")
+                                            : null;
+                            final String typeName = client.getVersion() < 7 ? TYPE_NAME : "_doc";
+                            performRequest(
+                                    "POST",
+                                    "/" + indexName + "/" + typeName + "/" + id,
+                                    featureSource);
+                        }
                     }
-                }
 
-                performRequest("POST", "/" + indexName + "/_refresh", null);
-            } finally {
-                inputStream.close();
+                    performRequest("POST", "/" + indexName + "/_refresh", null);
+                }
             }
         }
     }

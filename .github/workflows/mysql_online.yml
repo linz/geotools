@@ -7,31 +7,33 @@ jobs:
     name: MySQL ${{ matrix.mysql }} online test
     runs-on: [ubuntu-latest]
     strategy:
+      fail-fast: false
       matrix:
         mysql: [5, 8]
-        java: [1.8]
+        java: [8]
 
     steps:
     - name: Set up JDK ${{ matrix.java }}
-      uses: actions/setup-java@v1
+      uses: actions/setup-java@v2
       with:
         java-version: ${{ matrix.java }}
+        distribution: 'temurin'
     - uses: actions/checkout@v2
     - name: Maven repository caching
       uses: actions/cache@v2
       with:
         path: ~/.m2/repository
-        key: mysql-${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        key: gt-maven-${{ hashFiles('**/pom.xml') }}
         restore-keys: |
-          mysql-${{ runner.os }}-maven-
+          gt-maven-
     - name: Setup test environment for MySQL ${{ matrix.mysql }} 
       run: |
         ./build/ci/mysql/start-mysql.sh ${{ matrix.mysql }}
         ./build/ci/mysql/setup-mysql.sh
     - name: Build GeoTools dependent modules (no tests)
-      run: mvn -B clean install -T2 -Dall -pl :gt-jdbc-mysql -DskipTests -Dfmt.skip=true -am
+      run: mvn -B clean install -T2 -Dall -pl :gt-jdbc-mysql -DskipTests -Dspotless.apply.skip=true -am
     - name: Test MySQL data store
-      run: mvn -B clean install -T2 -Dall -pl :gt-jdbc-mysql -Ponline -Dfmt.skip=true
+      run: mvn -B clean install -T2 -Dall -pl :gt-jdbc-mysql -Ponline -Dspotless.apply.skip=true
     - name: Remove SNAPSHOT jars from repository
       run: |
         find ~/.m2/repository -name "*SNAPSHOT*" -type d | xargs rm -rf {}

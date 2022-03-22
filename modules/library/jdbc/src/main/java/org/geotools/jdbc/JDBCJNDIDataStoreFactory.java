@@ -35,8 +35,6 @@ import org.geotools.util.factory.GeoTools;
  *
  * @author Christian Mueller
  */
-// temporary work around, the factory parameters map will be fixed separately
-@SuppressWarnings("unchecked")
 public abstract class JDBCJNDIDataStoreFactory extends JDBCDataStoreFactory {
 
     public static final String J2EERootContext = "java:comp/env/";
@@ -94,7 +92,7 @@ public abstract class JDBCJNDIDataStoreFactory extends JDBCDataStoreFactory {
         DataSource ds = null;
 
         try {
-            ctx = GeoTools.getInitialContext(GeoTools.getDefaultHints());
+            ctx = GeoTools.getInitialContext();
         } catch (NamingException e) {
             throw new RuntimeException(e);
         }
@@ -136,7 +134,7 @@ public abstract class JDBCJNDIDataStoreFactory extends JDBCDataStoreFactory {
     @Override
     public boolean isAvailable() {
         try {
-            GeoTools.getInitialContext(GeoTools.getDefaultHints());
+            GeoTools.getInitialContext();
             return true;
         } catch (NamingException e) {
             return false;
