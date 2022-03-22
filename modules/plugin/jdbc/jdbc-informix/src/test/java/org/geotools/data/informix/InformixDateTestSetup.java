@@ -26,7 +26,8 @@ public class InformixDateTestSetup extends JDBCDateTestSetup {
 
     @Override
     protected void createDateTable() throws Exception {
-        run("CREATE TABLE dates (id SERIAL PRIMARY KEY, d DATE, dt DATETIME YEAR TO SECOND, t DATETIME HOUR TO SECOND)");
+        run(
+                "CREATE TABLE dates (id SERIAL PRIMARY KEY, d DATE, dt DATETIME YEAR TO SECOND, t DATETIME HOUR TO SECOND)");
 
         run(
                 "INSERT INTO dates (d, dt, t) VALUES ("

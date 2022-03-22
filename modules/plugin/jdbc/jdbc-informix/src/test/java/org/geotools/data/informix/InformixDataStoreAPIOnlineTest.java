@@ -25,10 +25,12 @@ public class InformixDataStoreAPIOnlineTest extends JDBCDataStoreAPIOnlineTest {
     }
 
     public void testGetFeatureWriterConcurrency() throws Exception {
-        // Skip - does not work with Informix. As with other DBs, probably could be made to work somehow, but not today.
+        // Skip - does not work with Informix. As with other DBs, probably could be made to work
+        // somehow, but not today.
     }
 
     public void testTransactionIsolation() throws Exception {
-        // Skip - does not work with Informix. It probably could be made to work somehow, but not today.
+        // Skip - does not work with Informix. It probably could be made to work somehow, but not
+        // today.
     }
 }

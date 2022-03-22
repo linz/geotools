@@ -1327,13 +1327,18 @@ public class JoiningJDBCFeatureSource extends JDBCFeatureSource {
             finalSql.append("SELECT ");
             SimpleFeatureType featureType = store.getSchema(mv.getTargetTable());
             PrimaryKey primaryKeys = store.getPrimaryKey(featureType);
+            List<String> pkNames = new ArrayList<>();
             for (PrimaryKeyColumn primaryKey : primaryKeys.getColumns()) {
-                encodeColumnName(finalSql, mv.getTargetTable(), primaryKey.getName());
+                String pkName = primaryKey.getName();
+                pkNames.add(pkName);
+                encodeColumnName(finalSql, mv.getTargetTable(), pkName);
                 finalSql.append(", ");
             }
             for (String property : mv.getProperties()) {
-                encodeColumnName(finalSql, mv.getTargetTable(), property);
-                finalSql.append(", ");
+                if (!pkNames.contains(property)) {
+                    encodeColumnName(finalSql, mv.getTargetTable(), property);
+                    finalSql.append(", ");
+                }
             }
             finalSql.delete(finalSql.length() - 2, finalSql.length());
             // encode value expression
@@ -1494,18 +1499,23 @@ public class JoiningJDBCFeatureSource extends JDBCFeatureSource {
                 AtomicReference<PreparedFilterToSQL> toSQLref = new AtomicReference<>();
                 String sql =
                         !isNestedFilter
-                                ? createCountQuery(dialect, querySchema, jQuery, idColumnName)
+                                ? createCountQuery(
+                                        dialect, querySchema, jQuery, idColumnName, toSQLref)
                                 : createJoiningCountQuery(
                                         dialect, querySchema, jQuery, idColumnName, toSQLref);
                 st =
                         cx.prepareStatement(
                                 sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
                 st.setFetchSize(getDataStore().fetchSize);
+                if (toSQLref.get() != null && toSQLref.get().getLiteralValues() != null) {
+                    getDataStore()
+                            .setPreparedFilterValues((PreparedStatement) st, toSQLref.get(), 0, cx);
+                }
                 rs = ((PreparedStatement) st).executeQuery();
             } else {
                 String sql =
                         !isNestedFilter
-                                ? createCountQuery(dialect, querySchema, jQuery, idColumnName)
+                                ? createCountQuery(dialect, querySchema, jQuery, idColumnName, null)
                                 : createJoiningCountQuery(
                                         dialect, querySchema, jQuery, idColumnName, null);
                 st = cx.createStatement();
@@ -1533,7 +1543,8 @@ public class JoiningJDBCFeatureSource extends JDBCFeatureSource {
             SQLDialect dialect,
             SimpleFeatureType querySchema,
             JoiningQuery query,
-            String idColumnName)
+            String idColumnName,
+            AtomicReference<PreparedFilterToSQL> toSQLRef)
             throws FilterToSQLException, SQLException {
         StringBuffer countSQL = new StringBuffer("SELECT COUNT(").append("DISTINCT ");
         getDataStore().encodeTableName(querySchema.getTypeName(), countSQL, query.getHints());
@@ -1544,6 +1555,7 @@ public class JoiningJDBCFeatureSource extends JDBCFeatureSource {
         if (!query.getFilter().equals(Filter.INCLUDE)) {
             FilterToSQL toSql = createFilterToSQL(querySchema);
             countSQL.append(toSql.encodeToString(query.getFilter()));
+            if (toSql instanceof PreparedFilterToSQL) toSQLRef.set((PreparedFilterToSQL) toSql);
         }
         String countQuery = countSQL.toString();
         if (LOGGER.isLoggable(Level.FINE)) LOGGER.fine(countQuery);

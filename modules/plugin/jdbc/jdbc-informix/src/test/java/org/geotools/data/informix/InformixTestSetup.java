@@ -42,11 +42,12 @@ public class InformixTestSetup extends JDBCTestSetup {
         //        run("SET GLOBAL sql_mode=(SELECT REPLACE(@@sql_mode,'NO_ZERO_DATE',''));");
 
         try {
-            run("insert into spatial_references " +
-                "(srid, description, auth_name, auth_srid, falsex, falsey, xyunits, falsez, zunits, falsem, munits, " +
-                "srtext) values " +
-                "(26713, 'NAD27 / UTM zone 13N (for GeoTools tests)', 'EPSG', 26713, 0, 0, 1000, 0, 1000, 0, 1000, " +
-                "'PROJCS')");
+            run(
+                    "insert into spatial_references "
+                            + "(srid, description, auth_name, auth_srid, falsex, falsey, xyunits, falsez, zunits, falsem, munits, "
+                            + "srtext) values "
+                            + "(26713, 'NAD27 / UTM zone 13N (for GeoTools tests)', 'EPSG', 26713, 0, 0, 1000, 0, 1000, 0, 1000, "
+                            + "'PROJCS')");
         } catch (Exception e) {
             //            e.printStackTrace();
         }
@@ -95,10 +96,10 @@ public class InformixTestSetup extends JDBCTestSetup {
                 .append("2,ST_GeomFromText('POINT(2 2)',4326)::ST_Point, 2, 2.2,'two');");
         run(sb.toString());
     }
-    
+
     @Override
     protected String attributeName(String raw) {
-    	return super.attributeName(raw.toLowerCase());
+        return super.attributeName(raw.toLowerCase());
     }
 
     @Override

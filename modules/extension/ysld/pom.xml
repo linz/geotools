@@ -6,7 +6,7 @@
   <parent>
     <groupId>org.geotools</groupId>
     <artifactId>extension</artifactId>
-    <version>26-SNAPSHOT</version>
+    <version>27-SNAPSHOT</version>
   </parent>
 
   <groupId>org.geotools</groupId>
@@ -32,6 +32,11 @@
       </roles>
     </developer>
   </developers>
+
+  <properties>
+    <!-- TODO: remove once EsyMock is updated, see https://github.com/easymock/easymock/issues/274 -->
+    <test.otherJVMParams>--add-opens=java.base/java.lang=ALL-UNNAMED</test.otherJVMParams>
+  </properties>
 
   <dependencyManagement>
     <dependencies>
@@ -98,11 +103,6 @@
     <dependency>
       <groupId>org.hamcrest</groupId>
       <artifactId>hamcrest-library</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.easymock</groupId>
-      <artifactId>easymockclassextension</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>

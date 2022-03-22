@@ -44,7 +44,6 @@ import org.opengis.feature.type.Name;
  *
  * @author Andrea Aime - GeoSolutions
  */
-@SuppressWarnings("rawtypes")
 public class OGRDataStore extends ContentDataStore {
 
     OGRDataSourcePool dataSourcePool;
@@ -361,6 +360,7 @@ public class OGRDataStore extends ContentDataStore {
     }
 
     @Override
+    @SuppressWarnings("PMD.UseTryWithResources") // closing field
     public void dispose() {
         try {
             super.dispose();

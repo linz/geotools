@@ -56,6 +56,7 @@ import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureReader;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.data.simple.SimpleFeatureWriter;
+import org.geotools.data.store.ReprojectingFeatureCollection;
 import org.geotools.filter.identity.FeatureIdImpl;
 import org.geotools.geometry.GeneralEnvelope;
 import org.geotools.geometry.jts.Geometries;
@@ -82,6 +83,7 @@ import org.opengis.feature.type.PropertyDescriptor;
 import org.opengis.filter.Filter;
 import org.opengis.filter.identity.Identifier;
 import org.opengis.referencing.FactoryException;
+import org.opengis.referencing.ReferenceIdentifier;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.sqlite.Function;
 import org.sqlite.SQLiteConfig;
@@ -138,6 +140,10 @@ public class GeoPackage implements Closeable {
     // requirement 11, two generic SRID are to be considered
     protected static final int GENERIC_GEOGRAPHIC_SRID = 0;
     protected static final int GENERIC_PROJECTED_SRID = -1;
+    /** The application id for GeoPackage 1.2 onwards (GPKG) */
+    static final int GPKG_120_APPID = 0x47504B47;
+    /** The application id for GeoPackage 1.0 (GP10) */
+    static final int GPKG_100_APPID = 0x47503130;
 
     public static enum DataType {
         Feature("features"),
@@ -301,7 +307,8 @@ public class GeoPackage implements Closeable {
                 ResultSet rs = st.executeQuery("PRAGMA application_id")) {
             if (rs.next()) {
                 int applicationId = rs.getInt(1);
-                initialized = (0x47503130 == applicationId);
+                // support legacy application id (before 1.2) as well as newer one (from 1.2)
+                initialized = (GPKG_100_APPID == applicationId || GPKG_120_APPID == applicationId);
             }
         }
         if (!initialized) {
@@ -316,7 +323,7 @@ public class GeoPackage implements Closeable {
             runScript(METADATA_REFERENCE + ".sql", cx);
             runScript(DATA_COLUMN_CONSTRAINTS + ".sql", cx);
             addDefaultSpatialReferences(cx);
-            runSQL("PRAGMA application_id = 0x47503130;", cx);
+            runSQL("PRAGMA application_id = " + GPKG_120_APPID + ";", cx);
         }
     }
 
@@ -791,15 +798,50 @@ public class GeoPackage implements Closeable {
     }
 
     /**
+     * According to GeoPKG spec, the coordinates MUST be in XY order. If this FC is in YX format, we
+     * reproject to the equivalent XY project.
+     *
+     * <p>If already XY, return the input FC.
+     *
+     * @param fc underlying feature collection
+     * @return feature collection which is has axis order in XY (NORTH_EAST)
+     */
+    static SimpleFeatureCollection forceXY(SimpleFeatureCollection fc) {
+        CoordinateReferenceSystem sourceCRS = fc.getSchema().getCoordinateReferenceSystem();
+        if ((CRS.getAxisOrder(sourceCRS) == CRS.AxisOrder.EAST_NORTH)
+                || (CRS.getAxisOrder(sourceCRS) == CRS.AxisOrder.INAPPLICABLE)) {
+            return fc;
+        }
+
+        for (ReferenceIdentifier identifier : sourceCRS.getIdentifiers()) {
+            try {
+                String _identifier = identifier.toString();
+                CoordinateReferenceSystem flippedCRS = CRS.decode(_identifier, true);
+                if (CRS.getAxisOrder(flippedCRS) == CRS.AxisOrder.EAST_NORTH) {
+                    ReprojectingFeatureCollection result =
+                            new ReprojectingFeatureCollection(fc, flippedCRS);
+                    return result;
+                }
+            } catch (Exception e) {
+                // couldn't flip - try again
+            }
+        }
+        return fc;
+    }
+
+    /**
      * Adds a new feature dataset to the geopackage.
      *
      * @param entry Contains metadata about the feature entry.
      * @param collection The simple feature collection to add to the geopackage.
      * @throws IOException Any errors occurring while adding the new feature dataset.
      */
+    @SuppressWarnings("PMD.UseTryWithResources") // Transaction needs to be rolled back ìn catch
     public void add(FeatureEntry entry, SimpleFeatureCollection collection) throws IOException {
         FeatureEntry e = new FeatureEntry();
         e.init(entry);
+
+        collection = forceXY(collection);
 
         if (e.getBounds() == null) {
             e.setBounds(collection.getBounds());
@@ -1111,12 +1153,7 @@ public class GeoPackage implements Closeable {
         properties.put("i", pk.getColumns().get(0).getName());
 
         try (Connection cx = connPool.getConnection()) {
-            try {
-                runScript(SPATIAL_INDEX + ".sql", cx, properties);
-            } finally {
-                cx.close();
-            }
-
+            runScript(SPATIAL_INDEX + ".sql", cx, properties);
         } catch (SQLException ex) {
             throw new IOException(ex);
         }
@@ -1644,9 +1681,9 @@ public class GeoPackage implements Closeable {
         try {
             return decodeSRID(srid);
         } catch (Exception ex) {
-            // try parsing srtext directly
+            // try parsing definition directly
             try {
-                return CRS.parseWKT(rs.getString("srtext"));
+                return CRS.parseWKT(rs.getString("definition"));
             } catch (Exception e2) {
                 throw new IOException(ex);
             }

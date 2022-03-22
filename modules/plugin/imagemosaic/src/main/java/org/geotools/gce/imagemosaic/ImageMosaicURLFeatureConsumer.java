@@ -66,9 +66,9 @@ public class ImageMosaicURLFeatureConsumer implements ImageMosaicElementConsumer
 
     static class ImageMosaicURLConsumer implements ImageMosaicElementConsumer<URL> {
 
-        private URLSourceSPIProvider sourceSPIProvider;
+        private SourceSPIProviderFactory sourceSPIProvider;
 
-        public ImageMosaicURLConsumer(URLSourceSPIProvider sourceSPIProvider) {
+        public ImageMosaicURLConsumer(SourceSPIProviderFactory sourceSPIProvider) {
             this.sourceSPIProvider = sourceSPIProvider;
         }
 

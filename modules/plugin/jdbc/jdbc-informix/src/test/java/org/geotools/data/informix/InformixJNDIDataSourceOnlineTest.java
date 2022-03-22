@@ -17,6 +17,7 @@
 
 package org.geotools.data.informix;
 
+import java.util.List;
 import org.geotools.jdbc.JDBCDataStoreFactory;
 import org.geotools.jdbc.JDBCJNDIDataSourceOnlineTest;
 import org.geotools.jdbc.JDBCJNDIDataStoreFactory;
@@ -36,5 +37,21 @@ public class InformixJNDIDataSourceOnlineTest extends JDBCJNDIDataSourceOnlineTe
     @Override
     protected JDBCDataStoreFactory getDataStoreFactory() {
         return new InformixDataStoreFactory();
+    }
+
+    /** Make sure the JNDI factory exposes all the extra params that the non JNDI one exposes */
+    @Override
+    public void testExtraParams() {
+        List<String> baseParams = getBaseParams();
+        List<String> standardParams = getParamKeys(getDataStoreFactory());
+        standardParams.remove(InformixDataStoreFactory.VALIDATECONN.key);
+        standardParams.remove(InformixDataStoreFactory.MAX_OPEN_PREPARED_STATEMENTS.key);
+        standardParams.remove(InformixDataStoreFactory.JDBC_URL.key);
+        standardParams.removeAll(baseParams);
+        List<String> baseJndiParams = getBaseJNDIParams();
+        List<String> jndiParams = getParamKeys(getJNDIStoreFactory());
+        assertTrue(jndiParams.contains(InformixDataStoreFactory.FETCHSIZE.key));
+        assertTrue(jndiParams.contains(InformixDataStoreFactory.BATCH_INSERT_SIZE.key));
+        jndiParams.removeAll(baseJndiParams);
     }
 }

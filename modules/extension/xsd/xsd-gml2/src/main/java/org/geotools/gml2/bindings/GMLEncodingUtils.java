@@ -40,6 +40,7 @@ import org.eclipse.xsd.XSDParticle;
 import org.eclipse.xsd.XSDTypeDefinition;
 import org.eclipse.xsd.util.XSDConstants;
 import org.geotools.feature.NameImpl;
+import org.geotools.geometry.jts.JTS;
 import org.geotools.gml2.GMLConfiguration;
 import org.geotools.util.logging.Logging;
 import org.geotools.xlink.XLINK;
@@ -208,15 +209,9 @@ public class GMLEncodingUtils {
                 // get the value
                 Object attributeValue = ((SimpleFeature) feature).getAttribute(attribute.getName());
                 if (attributeValue != null && attributeValue instanceof Geometry) {
-                    Object obj = ((Geometry) attributeValue).getUserData();
-                    Map<Object, Object> userData = new HashMap<>();
-                    if (obj != null && obj instanceof Map) {
-                        userData.putAll((Map) obj);
-                    }
-                    userData.put(
-                            CoordinateReferenceSystem.class,
+                    JTS.setCRS(
+                            ((Geometry) attributeValue),
                             featureType.getCoordinateReferenceSystem());
-                    ((Geometry) attributeValue).setUserData(userData);
                 }
                 properties.add(new Object[] {particle, attributeValue});
             } else {
@@ -235,24 +230,8 @@ public class GMLEncodingUtils {
                         // will be obtained without considering substitution groups
                         unsubstPropertyNames =
                                 (Set<Name>)
-                                        particles
-                                                .stream()
-                                                .map(
-                                                        p -> {
-                                                            XSDElementDeclaration attr =
-                                                                    (XSDElementDeclaration)
-                                                                            ((XSDParticle) p)
-                                                                                    .getContent();
-                                                            if (attr
-                                                                    .isElementDeclarationReference()) {
-                                                                attr =
-                                                                        attr
-                                                                                .getResolvedElementDeclaration();
-                                                            }
-                                                            return new NameImpl(
-                                                                    attr.getTargetNamespace(),
-                                                                    attr.getName());
-                                                        })
+                                        particles.stream()
+                                                .map(GMLEncodingUtils::resolvedName)
                                                 .collect(Collectors.toSet());
                     }
                     for (XSDElementDeclaration xsdElementDeclaration :
@@ -309,6 +288,14 @@ public class GMLEncodingUtils {
         }
 
         return properties;
+    }
+
+    private static Object resolvedName(Object p) {
+        XSDElementDeclaration attr = (XSDElementDeclaration) ((XSDParticle) p).getContent();
+        if (attr.isElementDeclarationReference()) {
+            attr = attr.getResolvedElementDeclaration();
+        }
+        return new NameImpl(attr.getTargetNamespace(), attr.getName());
     }
 
     public XSDTypeDefinition createXmlTypeFromFeatureType(
@@ -617,7 +604,6 @@ public class GMLEncodingUtils {
         setMetadata(g, "gml:description", description);
     }
 
-    @SuppressWarnings("rawtypes")
     String getMetadata(Geometry g, String metadata) {
         if (g.getUserData() instanceof Map) {
             Map userData = (Map) g.getUserData();
@@ -626,7 +612,7 @@ public class GMLEncodingUtils {
         return null;
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings("unchecked")
     void setMetadata(Geometry g, String metadata, String value) {
         if (g.getUserData() == null) {
             g.setUserData(new HashMap());

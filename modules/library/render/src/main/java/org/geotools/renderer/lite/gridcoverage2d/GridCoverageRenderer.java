@@ -48,6 +48,7 @@ import org.geotools.coverage.CoverageFactoryFinder;
 import org.geotools.coverage.grid.GridCoverage2D;
 import org.geotools.coverage.grid.GridCoverageFactory;
 import org.geotools.coverage.grid.GridEnvelope2D;
+import org.geotools.coverage.grid.GridGeometry2D;
 import org.geotools.coverage.grid.io.AbstractGridFormat;
 import org.geotools.coverage.grid.io.GridCoverage2DReader;
 import org.geotools.geometry.GeneralEnvelope;
@@ -76,6 +77,8 @@ import org.geotools.util.factory.Hints.Key;
 import org.locationtech.jts.geom.Envelope;
 import org.opengis.coverage.grid.GridCoverage;
 import org.opengis.coverage.grid.GridCoverageReader;
+import org.opengis.coverage.grid.GridEnvelope;
+import org.opengis.metadata.spatial.PixelOrientation;
 import org.opengis.parameter.GeneralParameterValue;
 import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
@@ -91,7 +94,6 @@ import org.opengis.referencing.operation.TransformException;
  * @author Alessio Fabiani, GeoSolutions SAS
  * @version $Id$
  */
-@SuppressWarnings("deprecation")
 public final class GridCoverageRenderer {
 
     /** Logger. */
@@ -407,8 +409,10 @@ public final class GridCoverageRenderer {
         // REPROJECTION if needed
         //
         // /////////////////////////////////////////////////////////////////////
+        Hints warpAffineHints = getReprojectionHints(hints, preReprojection);
         GridCoverage2D afterReprojection = preReprojection;
         if (doReprojection) {
+
             afterReprojection =
                     GridCoverageRendererUtilities.reproject(
                             preReprojection,
@@ -417,7 +421,7 @@ public final class GridCoverageRenderer {
                             destinationEnvelope,
                             bkgValues,
                             gridCoverageFactory,
-                            hints);
+                            warpAffineHints);
         }
 
         if (DEBUG) {
@@ -429,7 +433,7 @@ public final class GridCoverageRenderer {
         // symbolizer
         GridCoverage2D symbolized = afterReprojection;
         if (afterReprojection != null) {
-            symbolized = symbolize(afterReprojection, symbolizer, bkgValues);
+            symbolized = symbolize(afterReprojection, symbolizer, bkgValues, warpAffineHints);
         }
         return symbolized;
     }
@@ -437,13 +441,14 @@ public final class GridCoverageRenderer {
     private GridCoverage2D symbolize(
             final GridCoverage2D coverage,
             final RasterSymbolizer symbolizer,
-            final double[] bkgValues) {
+            final double[] bkgValues,
+            final Hints hints) {
         // ///////////////////////////////////////////////////////////////////
         //
         // FINAL AFFINE
         //
         // ///////////////////////////////////////////////////////////////////
-        final GridCoverage2D preSymbolizer = affine(coverage, bkgValues, symbolizer);
+        final GridCoverage2D preSymbolizer = affine(coverage, bkgValues, symbolizer, hints);
         if (preSymbolizer == null) {
             return null;
         }
@@ -503,7 +508,7 @@ public final class GridCoverageRenderer {
 
     /** */
     private GridCoverage2D affine(
-            GridCoverage2D input, double[] bkgValues, RasterSymbolizer symbolizer) {
+            GridCoverage2D input, double[] bkgValues, RasterSymbolizer symbolizer, Hints hints) {
         // NOTICE that at this stage the image we get should be 8 bits, either RGB, RGBA, Gray,
         // GrayA either multiband or indexed. It could also be 16 bits indexed!!!!
 
@@ -733,6 +738,8 @@ public final class GridCoverageRenderer {
         logCoverages("cropped", coverages);
 
         // reproject if needed
+        Hints warpAffineHints =
+                coverages.isEmpty() ? hints : getReprojectionHints(hints, coverages.get(0));
         List<GridCoverage2D> reprojectedCoverages =
                 GridCoverageRendererUtilities.reproject(
                         coverages,
@@ -741,7 +748,7 @@ public final class GridCoverageRenderer {
                         destinationEnvelope,
                         bgValues,
                         gridCoverageFactory,
-                        hints);
+                        warpAffineHints);
         logCoverages("reprojected", reprojectedCoverages);
 
         // displace them if needed via a projection handler
@@ -762,7 +769,8 @@ public final class GridCoverageRenderer {
         List<GridCoverage2D> symbolizedCoverages = new ArrayList<>();
         if (finalSymbolizer != null) {
             for (GridCoverage2D displaced : displacedCoverages) {
-                GridCoverage2D symbolized = symbolize(displaced, finalSymbolizer, bgValues);
+                GridCoverage2D symbolized =
+                        symbolize(displaced, finalSymbolizer, bgValues, warpAffineHints);
                 if (symbolized != null) {
                     symbolizedCoverages.add(symbolized);
                 }
@@ -773,7 +781,8 @@ public final class GridCoverageRenderer {
             // do the affine step to allow warp/affine merging, in order to best preserve rotations
             // in the warp in case of oversampling
             for (GridCoverage2D displaced : displacedCoverages) {
-                final GridCoverage2D affined = affine(displaced, bgValues, symbolizer);
+                final GridCoverage2D affined =
+                        affine(displaced, bgValues, symbolizer, warpAffineHints);
                 if (affined != null) {
                     symbolizedCoverages.add(affined);
                 }
@@ -804,13 +813,53 @@ public final class GridCoverageRenderer {
         return getImageFromParentCoverage(cropped);
     }
 
+    /**
+     * Computes the reprojection tolerance considering an eventual oversampling. In case of
+     * oversampling, the reprojection tolerance needs to be altered, because pixels will be expanded
+     * by an affine transform after reprojection, magnifying the linearization error.
+     */
+    private Hints getReprojectionHints(Hints hints, GridCoverage2D gridCoverage2D) {
+        if (gridCoverage2D == null) return hints;
+
+        // reprojection is done without a target GG, the resampling machinery will preserve
+        // the pixel structure and go towards the target envelope
+        final GridGeometry2D sourceGG = gridCoverage2D.getGridGeometry();
+        final GridEnvelope targetGR = sourceGG.getGridRange2D();
+        final GridGeometry2D targetGG = new GridGeometry2D(targetGR, this.destinationEnvelope);
+        MathTransform targetMT = targetGG.getGridToCRS(PixelOrientation.UPPER_LEFT);
+
+        // should always be an affine, but best be ready for alternatives
+        if (!(targetMT instanceof AffineTransform2D)) {
+            LOGGER.log(
+                    Level.FINE,
+                    "Cannot check if oversampling is happening, the grid to CRS "
+                            + "transformation is not an Affine2D: {0}",
+                    targetMT);
+            return hints;
+        }
+
+        // compute the scale factors
+        AffineTransform2D targetAT = (AffineTransform2D) targetMT;
+        double scaleX = Math.abs(targetAT.getScaleX() / finalGridToWorld.getScaleX());
+        double scaleY = Math.abs(targetAT.getScaleY() / finalGridToWorld.getScaleY());
+        double scale = Math.max(scaleX, scaleY);
+        if (scale <= 1) return hints;
+
+        // oversampling detected... tried to just reduce the tolerance based on the scale, but
+        // small artifacts kept on creeping on at high oversampling factors. Settled for no
+        // linearization at all instead, just use the full math on the few pixels that need
+        // to be reprojected instead
+        Hints result = new Hints(hints);
+        result.put(Hints.RESAMPLE_TOLERANCE, 0d);
+        return result;
+    }
+
     private void logCoverages(String name, List<GridCoverage2D> coverages) {
         if (LOGGER.isLoggable(Level.FINE)) {
             String message =
                     "GridCoverageRenderer coverages: " + name + "\n" + coverages == null
                             ? "none"
-                            : coverages
-                                    .stream()
+                            : coverages.stream()
                                     .map(c -> c.toString())
                                     .collect(Collectors.joining(","));
             LOGGER.log(Level.FINE, message);

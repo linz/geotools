@@ -66,8 +66,8 @@ public final class ECWTest extends GDALTestCase {
         super("ECW", new ECWFormatFactory());
     }
 
-    @SuppressWarnings("deprecation")
     @Test
+    @SuppressWarnings("PMD.SimplifiableTestAssertion") // envelope test with tolerance
     public void test() throws Exception {
         if (!testingEnabled()) {
             return;

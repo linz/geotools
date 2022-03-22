@@ -31,8 +31,7 @@ public class InformixJoinTestSetup extends JDBCJoinTestSetup {
         StringBuffer sb = new StringBuffer();
         sb.append("CREATE TABLE ftjoin ")
                 .append("(id int PRIMARY KEY, ")
-                .append(
-                        "name VARCHAR(255), geom ST_POLYGON, join1intProperty int);");
+                .append("name VARCHAR(255), geom ST_POLYGON, join1intProperty int);");
         run(sb.toString());
 
         sb = new StringBuffer();

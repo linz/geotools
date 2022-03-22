@@ -20,6 +20,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import it.geosolutions.jaiext.range.NoDataContainer;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
@@ -36,6 +37,7 @@ import org.geotools.coverage.grid.GridCoverageFactory;
 import org.geotools.coverage.grid.io.AbstractGridCoverage2DReader;
 import org.geotools.coverage.grid.io.AbstractGridFormat;
 import org.geotools.coverage.grid.io.GridFormatFinder;
+import org.geotools.data.DataUtilities;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.factory.CommonFactoryFinder;
@@ -114,13 +116,7 @@ public class ContourProcessTest {
         // Should be a single contour
         assertEquals(1, fc.size());
 
-        SimpleFeatureIterator iter = fc.features();
-        SimpleFeature feature = null;
-        try {
-            feature = iter.next();
-        } finally {
-            iter.close();
-        }
+        SimpleFeature feature = DataUtilities.first(fc);
 
         // Check contour value
         Double value = (Double) feature.getAttribute("value");
@@ -244,24 +240,34 @@ public class ContourProcessTest {
     }
 
     @Test
-    public void testContourWithTransformAndReprojection() throws Exception {
-        int width = 256;
-        int height = 256;
+    public void testContourWithTransformAndReprojection_WithOpacitySingleFTS() throws Exception {
+        // The style with a single FeatureTypeStyle will use plain rendering.
         // The style with opacity will not use the screenmap.
-        int whiteSamples1 = countWhiteSamples("contour_with_opacity.sld", width, height);
-        // The style without opacity will use the screenmap.
-        int whiteSamples2 = countWhiteSamples("contour_without_opacity.sld", width, height);
-        // The white contour lines with the sample data and styles should cover about
-        // 0.25% of the rendered image regardless of whether the screenmap is used.
-        // The bug that this is testing would cause a large number of diagonal lines
-        // to be drawn across the image so the percentage of white pixels with the
-        // bug would be significantly higher.
-        double area = width * height;
-        assertEquals(0.0025, whiteSamples1 / area, 0.0005);
-        assertEquals(0.0025, whiteSamples2 / area, 0.0005);
+        assertWhiteSamples("contour_with_opacity.sld");
     }
 
-    private int countWhiteSamples(String styleName, int width, int height) throws Exception {
+    @Test
+    public void testContourWithTransformAndReprojection_WithoutOpacitySingleFTS() throws Exception {
+        // The style with a single FeatureTypeStyle will use plain rendering.
+        // The style without opacity will use the screenmap.
+        assertWhiteSamples("contour_without_opacity.sld");
+    }
+
+    @Test
+    public void testContourWithTransformAndReprojection_WithOpacityMultiFTS() throws Exception {
+        // The style with multiple FeatureTypeStyles will use optimized rendering.
+        // The style with opacity will not use the screenmap.
+        assertWhiteSamples("contour_multi_fts_with_opacity.sld");
+    }
+
+    @Test
+    public void testContourWithTransformAndReprojection_WithoutOpacityMultiFTS() throws Exception {
+        // The style with multiple FeatureTypeStyles will use optimized rendering.
+        // The style without opacity will use the screenmap.
+        assertWhiteSamples("contour_multi_fts_without_opacity.sld");
+    }
+
+    private void assertWhiteSamples(String styleName) throws Exception {
         StyleFactory factory = CommonFactoryFinder.getStyleFactory(null);
         URL url = TestData.getResource(this, styleName);
         Style style = new SLDParser(factory, url).readXML()[0];
@@ -279,6 +285,8 @@ public class ContourProcessTest {
         renderer.setMapContent(mc);
 
         // render the image with the EPSG:4326 projection
+        int width = 256;
+        int height = 256;
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = image.createGraphics();
         renderer.paint(
@@ -295,6 +303,37 @@ public class ContourProcessTest {
                 whiteSamples += raster.getSample(i, j, 0) == 255 ? 1 : 0;
             }
         }
-        return whiteSamples;
+
+        // The white contour lines with the sample data and styles should cover about
+        // 0.25% of the rendered image regardless of whether the screenmap is used.
+        // The bug that this is testing would cause a large number of diagonal lines
+        // to be drawn across the image so the percentage of white pixels with the
+        // bug would be significantly higher.
+        double area = width * height;
+        assertEquals(0.0025, whiteSamples / area, 0.0005);
+    }
+
+    @Test
+    public void testContourWithNoDataProperty() {
+        // Create a coverage with a NoData value only in the properties.
+        ReferencedEnvelope envelope = new ReferencedEnvelope(0, 3, 0, 3, null);
+        float[][] matrix = {{0, 0, 0}, {0, 9999, 0}, {0, 0, 0}};
+        GridCoverage2D cov = covFactory.create("coverage", matrix, envelope);
+        Map<Object, Object> properties = new HashMap<>();
+        properties.put(NoDataContainer.GC_NODATA, new NoDataContainer(9999));
+        cov =
+                covFactory.create(
+                        cov.getName(),
+                        cov.getRenderedImage(),
+                        cov.getEnvelope(),
+                        cov.getSampleDimensions(),
+                        null,
+                        properties);
+        SimpleFeatureCollection fc =
+                process.execute(cov, 0, new double[] {20}, null, null, null, null, null);
+        // Before fix, the NoData value will be interpolated and create a contour.
+        // After fix, the NoData value will be ignored so there will be no contours.
+        assertNotNull(fc);
+        assertTrue(fc.isEmpty());
     }
 }

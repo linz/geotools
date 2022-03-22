@@ -53,6 +53,7 @@ import java.util.Map;
 import javax.imageio.ImageIO;
 import javax.media.jai.Interpolation;
 import javax.media.jai.ROI;
+import javax.media.jai.RenderedOp;
 import javax.media.jai.TiledImage;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.RegexFileFilter;
@@ -578,6 +579,13 @@ public class GridCoverageRendererTest {
 
         // always set ROI on reprojection
         assertThat(image.getProperty("roi"), instanceOf(ROI.class));
+
+        // the reprojection happened while oversampling, make sure the warp was not linearized,
+        // and it's use the WarpAdapter class wrapping a MathTransform
+        RenderedOp op = (RenderedOp) image;
+        assertEquals(
+                "WarpAdapter",
+                op.getParameterBlock().getObjectParameter(0).getClass().getSimpleName());
 
         File reference =
                 new File(
@@ -2384,6 +2392,59 @@ public class GridCoverageRendererTest {
         raster = image.getData();
         int sampleB = raster.getSample(noDataPixelCoordinateX, noDataPixelCoordinateY, 0);
         assertEquals(0, sampleB);
+        coverage.dispose(true);
+    }
+
+    @Test
+    public void testContrastEnhancementWithNodataZero() throws Exception {
+        URL coverageFile =
+                org.geotools.test.TestData.url(GridCoverageRendererTest.class, "nodatazero.tif");
+        GeoTiffReader reader = new GeoTiffReader(coverageFile);
+        GridCoverage2D coverage = reader.read(null);
+        NoDataContainer noDataProperty = CoverageUtilities.getNoDataProperty(coverage);
+        assertNotNull(noDataProperty);
+        double noData = noDataProperty.getAsSingleValue();
+
+        // At that specific location (x=7,y=2) sample should be nodata
+        final int noDataPixelCoordinateX = 7;
+        final int noDataPixelCoordinateY = 2;
+        RenderedImage image = coverage.getRenderedImage();
+        Raster raster = image.getData();
+        double sample = raster.getSampleDouble(noDataPixelCoordinateX, noDataPixelCoordinateY, 0);
+        assertEquals(noData, sample, 1E-6);
+
+        ReferencedEnvelope mapExtent = ReferencedEnvelope.reference(coverage.getEnvelope2D());
+        Rectangle screenSize =
+                new Rectangle(
+                        image.getMinX(), image.getMinY(), image.getWidth(), image.getHeight());
+        AffineTransform w2s = RendererUtilities.worldToScreenTransform(mapExtent, screenSize);
+        GridCoverageRenderer renderer =
+                new GridCoverageRenderer(
+                        coverage.getCoordinateReferenceSystem(), mapExtent, screenSize, w2s);
+
+        Style style = RendererBaseTest.loadStyle(this, "nodatazero.sld");
+        RasterSymbolizer rasterSymbolizer =
+                (RasterSymbolizer)
+                        style.featureTypeStyles().get(0).rules().get(0).symbolizers().get(0);
+        image =
+                renderer.renderImage(
+                        coverage,
+                        rasterSymbolizer,
+                        Interpolation.getInstance(Interpolation.INTERP_NEAREST),
+                        Color.RED,
+                        256,
+                        256);
+
+        raster = image.getData();
+        int sampleB = raster.getSample(noDataPixelCoordinateX, noDataPixelCoordinateY, 0);
+        assertEquals(0, sampleB);
+        ImageWorker iw = new ImageWorker(image);
+        double[] min = iw.getMinimums();
+        double[] max = iw.getMaximums();
+        // Check that 0 has been reserved for nodata and that the minimum valid pixel is 1 when
+        // rescaled to byte.
+        assertEquals(1, min[0], DELTA);
+        assertEquals(255, max[0], DELTA);
         coverage.dispose(true);
     }
 

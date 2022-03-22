@@ -23,12 +23,13 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import javax.measure.Unit;
 import org.apache.commons.io.FileUtils;
+import org.geotools.coverage.GridSampleDimension;
+import org.geotools.coverage.grid.GridCoverage2D;
 import org.geotools.coverage.io.netcdf.crs.NetCDFCRSAuthorityFactory;
 import org.geotools.coverage.io.netcdf.crs.NetCDFCoordinateReferenceSystemType;
 import org.geotools.coverage.io.netcdf.crs.NetCDFProjection;
@@ -79,20 +80,6 @@ public class NetCDFCRSTest {
     private static final double DELTA = 1E-6;
 
     private static CoordinateReferenceSystem UTM32611;
-
-    private void setFinalStaticField(String fieldName, boolean value)
-            throws NoSuchFieldException, SecurityException, IllegalArgumentException,
-                    IllegalAccessException {
-        // Playing with System.Properties and Static boolean fields can raises issues
-        // when running Junit tests via Maven, due to initialization orders.
-        // So let's change the fields via reflections for these tests
-        Field field = NetCDFCRSUtilities.class.getDeclaredField(fieldName);
-        field.setAccessible(true);
-        Field modifiersField = Field.class.getDeclaredField("modifiers");
-        modifiersField.setAccessible(true);
-        modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-        field.set(null, value);
-    }
 
     /** Sets up the custom definitions */
     @BeforeClass
@@ -287,6 +274,35 @@ public class NetCDFCRSTest {
     }
 
     @Test
+    public void testCachedUnits() throws Exception {
+        final File file = TestData.file(this, "rotated-pole.nc");
+        NetCDFReader reader = null;
+        Unit<?> unit1 = null;
+        Unit<?> unit2 = null;
+        try {
+            reader = new NetCDFReader(file, null);
+            GridCoverage2D coverage = reader.read(null);
+            GridSampleDimension sampleDimension = coverage.getSampleDimension(0);
+            unit1 = sampleDimension.getUnits();
+        } finally {
+            if (reader != null) {
+                reader.dispose();
+            }
+        }
+        try {
+            reader = new NetCDFReader(file, null);
+            GridCoverage2D coverage = reader.read(null);
+            GridSampleDimension sampleDimension = coverage.getSampleDimension(0);
+            unit2 = sampleDimension.getUnits();
+        } finally {
+            if (reader != null) {
+                reader.dispose();
+            }
+        }
+        assertSame(unit1, unit2);
+    }
+
+    @Test
     public void testProjectionSetup() throws Exception {
         ParameterValueGroup params =
                 ProjectionBuilder.getProjectionParameters(
@@ -472,7 +488,7 @@ public class NetCDFCRSTest {
 
     @Test
     public void testPreserveKM() throws Exception {
-        setFinalStaticField("CONVERT_AXIS_KM", false);
+        NetCDFCRSUtilities.setConvertAxisKm(false);
         String fileName = "samplekm.nc";
         File nc1 = TestData.file(this, fileName);
         File converted = tempFolder.newFolder("converted");
@@ -491,7 +507,7 @@ public class NetCDFCRSTest {
 
     @Test
     public void testAutoConversionKmToM() throws Exception {
-        setFinalStaticField("CONVERT_AXIS_KM", true);
+        NetCDFCRSUtilities.setConvertAxisKm(true);
         String fileName = "samplekm.nc";
         File nc1 = TestData.file(this, fileName);
         File converted = tempFolder.newFolder("converted");
@@ -511,5 +527,6 @@ public class NetCDFCRSTest {
     @After
     public void cleanUpDefinitions() throws Exception {
         System.clearProperty(NetCDFCRSAuthorityFactory.SYSTEM_DEFAULT_USER_PROJ_FILE);
+        NetCDFCRSUtilities.setConvertAxisKm(false);
     }
 }

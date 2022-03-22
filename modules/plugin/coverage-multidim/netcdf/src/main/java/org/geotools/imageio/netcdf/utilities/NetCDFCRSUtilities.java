@@ -28,8 +28,9 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.measure.Unit;
-import javax.measure.format.UnitFormat;
 import org.geotools.imageio.Identification;
+import org.geotools.measure.UnitFormat;
+import org.geotools.measure.UnitFormatter;
 import org.geotools.metadata.sql.MetadataException;
 import org.geotools.referencing.CRS;
 import org.geotools.referencing.crs.DefaultGeographicCRS;
@@ -55,7 +56,6 @@ import org.opengis.referencing.datum.VerticalDatumType;
 import org.opengis.temporal.Position;
 import si.uom.NonSI;
 import si.uom.SI;
-import tech.units.indriya.format.SimpleUnitFormat;
 import ucar.nc2.Attribute;
 import ucar.nc2.constants.AxisType;
 import ucar.nc2.constants.CF;
@@ -129,7 +129,7 @@ public class NetCDFCRSUtilities {
     public static final String CONVERT_AXIS_KM_KEY =
             "org.geotools.coverage.io.netcdf.convertAxis.km";
 
-    private static final boolean CONVERT_AXIS_KM;
+    private static boolean convertAxisKm;
 
     static {
         add(AxisType.Time, "future", "past");
@@ -148,11 +148,11 @@ public class NetCDFCRSUtilities {
         VERTICAL_AXIS_NAMES.add("pressure");
 
         // Default is false, resulting into no automatic conversion anymore
-        CONVERT_AXIS_KM = Boolean.parseBoolean(System.getProperty(CONVERT_AXIS_KM_KEY, "false"));
+        convertAxisKm = Boolean.parseBoolean(System.getProperty(CONVERT_AXIS_KM_KEY, "false"));
     }
 
     /** The object to use for parsing and formatting units. */
-    private static final UnitFormat UNIT_FORMAT = SimpleUnitFormat.getInstance();
+    private static final UnitFormatter UNIT_FORMATTER = UnitFormat.getInstance();
 
     /** Adds a mapping between UCAR type and ISO direction. */
     private static void add(final AxisType type, final String direction, final String opposite) {
@@ -214,6 +214,11 @@ public class NetCDFCRSUtilities {
             }
         }
         return false;
+    }
+
+    /** Provides means to override flag CONVERT_AXIS_KM_KEY in runtime. */
+    public static void setConvertAxisKm(boolean convertAxisKm) {
+        NetCDFCRSUtilities.convertAxisKm = convertAxisKm;
     }
 
     public static VerticalCRS buildVerticalCrs(CoordinateAxis zAxis) {
@@ -485,8 +490,8 @@ public class NetCDFCRSUtilities {
      *
      * @param unitName The name of the unit. Should not be {@code null}.
      * @return The unit matching with the specified name.
-     * @throws MetadataException if the unit name does not match with the {@linkplain #UNIT_FORMAT
-     *     unit format}.
+     * @throws MetadataException if the unit name does not match with the {@linkplain
+     *     #UNIT_FORMATTER unit format}.
      */
     static Unit<?> getUnit(final String unitName) throws FactoryException {
         if (contains(unitName, METERS)) {
@@ -503,7 +508,7 @@ public class NetCDFCRSUtilities {
             return SI.DAY;
         } else {
             try {
-                return UNIT_FORMAT.parse(unitName);
+                return UNIT_FORMATTER.parse(unitName);
             } catch (UnsupportedOperationException e) {
                 throw new FactoryException("Unit not known : " + unitName, e);
             }
@@ -512,6 +517,6 @@ public class NetCDFCRSUtilities {
 
     /** Return true if the NetCDF CRS Parsing machinery will convert km coordinates to meter */
     public static boolean isConvertAxisKm() {
-        return CONVERT_AXIS_KM;
+        return convertAxisKm;
     }
 }

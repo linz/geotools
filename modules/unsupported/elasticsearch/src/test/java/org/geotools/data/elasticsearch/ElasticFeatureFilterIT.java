@@ -19,6 +19,7 @@ package org.geotools.data.elasticsearch;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -193,7 +194,7 @@ public class ElasticFeatureFilterIT extends ElasticTestSupport {
         try (SimpleFeatureIterator iterator = features.features()) {
             while (iterator.hasNext()) {
                 SimpleFeature f = iterator.next();
-                assertFalse(f.getAttribute("vendor_s").equals("D-Link"));
+                assertNotEquals("D-Link", f.getAttribute("vendor_s"));
             }
         }
     }
@@ -330,9 +331,8 @@ public class ElasticFeatureFilterIT extends ElasticTestSupport {
         SimpleFeatureCollection features = featureSource.getFeatures(query);
         assertEquals(11, features.size());
 
-        SimpleFeatureIterator iterator = features.features();
         SimpleFeature f;
-        try {
+        try (SimpleFeatureIterator iterator = features.features()) {
             assertTrue(iterator.hasNext());
             f = iterator.next();
             assertEquals("Asus", f.getAttribute("vendor_s"));
@@ -342,15 +342,12 @@ public class ElasticFeatureFilterIT extends ElasticTestSupport {
             assertTrue(iterator.hasNext());
             f = iterator.next();
             assertEquals("Cisco", f.getAttribute("vendor_s"));
-        } finally {
-            iterator.close();
         }
 
         sort = ff.sort("vendor_s", SortOrder.DESCENDING);
         query.setSortBy(sort);
         features = featureSource.getFeatures(query);
-        iterator = features.features();
-        try {
+        try (SimpleFeatureIterator iterator = features.features()) {
             assertTrue(iterator.hasNext());
             f = iterator.next();
             assertEquals("TP-Link", f.getAttribute("vendor_s"));
@@ -360,8 +357,6 @@ public class ElasticFeatureFilterIT extends ElasticTestSupport {
             assertTrue(iterator.hasNext());
             f = iterator.next();
             assertEquals("Linksys", f.getAttribute("vendor_s"));
-        } finally {
-            iterator.close();
         }
     }
 

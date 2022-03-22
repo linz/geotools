@@ -16,25 +16,10 @@
  */
 package org.geotools.data.informix;
 
-import java.io.IOException;
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Savepoint;
-import java.sql.Statement;
-import java.sql.Types;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.logging.Level;
-
 import org.geotools.data.jdbc.FilterToSQL;
-import org.geotools.geometry.jts.Geometries;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.jdbc.BasicSQLDialect;
 import org.geotools.jdbc.JDBCDataStore;
-import org.geotools.jdbc.SQLDialect;
 import org.geotools.referencing.CRS;
 import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Envelope;
@@ -55,6 +40,16 @@ import org.opengis.feature.type.AttributeDescriptor;
 import org.opengis.feature.type.GeometryDescriptor;
 import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Level;
 
 /**
  * Informix database dialect based on basic (non-prepared) statements.
@@ -346,13 +341,15 @@ public class InformixDialect extends BasicSQLDialect {
                 srid = i != null ? i : srid;
             }
 
-            // This code does not seem to be needed by any of the tests, but it is present for all the other datasource
-            // plugins so we have adapted it for Informix and retained it.
+            // This code does not seem to be needed by any of the tests, but it is present for all
+            // the other datasource plugins so we have adapted it for Informix and retained it.
             StringBuffer sql = new StringBuffer("INSERT INTO geometry_columns ");
-            sql.append("(f_table_catalog, f_table_schema, f_table_name, f_geometry_column, coord_dimension, srid, geometry_type)");
+            sql.append(
+                    "(f_table_catalog, f_table_schema, f_table_name, f_geometry_column, coord_dimension, srid, geometry_type)");
             sql.append(" VALUES (");
             sql.append("DBINFO('dbname'), ");
-            // Per the IBM Informix Spatial Data User's Guide, the value of f_table_schema should be the DB owner name.
+            // Per the IBM Informix Spatial Data User's Guide, the value of f_table_schema should be
+            // the DB owner name.
             sql.append("'" + cx.getMetaData().getUserName() + "'").append(", ");
             sql.append("'").append(featureType.getTypeName()).append("', ");
             sql.append("'").append(ad.getLocalName()).append("', ");
@@ -415,11 +412,13 @@ public class InformixDialect extends BasicSQLDialect {
 
     @Override
     public void applyLimitOffset(StringBuffer sql, int limit, int offset) {
-        // Note: The syntax of LIMIT and SKIP in Informix is stricter inside a subquery than in other contexts. SKIP
-        // must precede FIRST (no LIMIT) and these must be immediately after SELECT.
+        // Note: The syntax of LIMIT and SKIP in Informix is stricter inside a subquery than in
+        // other contexts. SKIP must precede FIRST (no LIMIT) and these must be immediately after
+        // SELECT.
         int selectIndex = sql.indexOf("SELECT");
         if (selectIndex < 0) {
-            throw new IllegalArgumentException("Cannot apply limit to a query that does not include SELECT");
+            throw new IllegalArgumentException(
+                    "Cannot apply limit to a query that does not include SELECT");
         }
 
         String limitSql = null;

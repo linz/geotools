@@ -12,7 +12,7 @@
   <parent>
     <groupId>org.geotools.xsd</groupId>
     <artifactId>xsd</artifactId>
-    <version>26-SNAPSHOT</version>
+    <version>27-SNAPSHOT</version>
   </parent>
   <!-- =========================================================== -->
   <!--     Module Description                                      -->
@@ -56,6 +56,11 @@
       </roles>
     </developer>
   </developers>
+
+  <properties>
+    <!-- TODO: remove once EsyMock is updated, see https://github.com/easymock/easymock/issues/274 -->
+    <test.otherJVMParams>--add-opens=java.base/java.lang=ALL-UNNAMED</test.otherJVMParams>
+  </properties>
   <!-- =========================================================== -->
   <!--     Dependency Management                                   -->
   <!-- =========================================================== -->
@@ -132,11 +137,6 @@
     <dependency>
       <groupId>org.easymock</groupId>
       <artifactId>easymock</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.easymock</groupId>
-      <artifactId>easymockclassextension</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

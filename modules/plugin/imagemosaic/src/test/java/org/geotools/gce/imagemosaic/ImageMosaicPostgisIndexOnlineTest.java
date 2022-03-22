@@ -136,7 +136,6 @@ public class ImageMosaicPostgisIndexOnlineTest extends OnlineTestCase {
     private final String noGeomLast = "zNotGeom";
 
     /** Complex test for Postgis indexing on db. */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     @Test
     public void testPostgisIndexing() throws Exception {
         final File workDir = new File(TestData.file(this, "."), tempFolderName1);
@@ -228,7 +227,6 @@ public class ImageMosaicPostgisIndexOnlineTest extends OnlineTestCase {
     }
 
     /** Complex test for Postgis indexing on db. */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     @Test
     public void testPostgisIndexingNoEpsgCode() throws Exception {
         final File workDir = new File(TestData.file(this, "."), tempFolderNoEpsg);
@@ -249,7 +247,6 @@ public class ImageMosaicPostgisIndexOnlineTest extends OnlineTestCase {
         assertNotNull(reader);
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     @Test
     public void testPostgisCreateAndDrop() throws Exception {
         final File workDir = new File(TestData.file(this, "."), tempFolderName4);
@@ -412,49 +409,28 @@ public class ImageMosaicPostgisIndexOnlineTest extends OnlineTestCase {
     private void dropTables(String[] tables, String database) throws Exception {
         // delete tables
         Class.forName("org.postgresql.Driver");
-        Connection connection = null;
-        Statement st = null;
-        try {
-            connection =
-                    DriverManager.getConnection(
-                            "jdbc:postgresql://"
-                                    + fixture.getProperty("host")
-                                    + ":"
-                                    + fixture.getProperty("port")
-                                    + "/"
-                                    + (database != null
-                                            ? database
-                                            : fixture.getProperty("database")),
-                            fixture.getProperty("user"),
-                            fixture.getProperty("passwd"));
-            st = connection.createStatement();
+        try (Connection connection =
+                        DriverManager.getConnection(
+                                "jdbc:postgresql://"
+                                        + fixture.getProperty("host")
+                                        + ":"
+                                        + fixture.getProperty("port")
+                                        + "/"
+                                        + (database != null
+                                                ? database
+                                                : fixture.getProperty("database")),
+                                fixture.getProperty("user"),
+                                fixture.getProperty("passwd"));
+                Statement st = connection.createStatement()) {
             for (String table : tables) {
                 st.execute("DROP TABLE IF EXISTS \"" + table + "\"");
             }
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
-        } finally {
-
-            if (st != null) {
-                try {
-                    st.close();
-                } catch (Exception e) {
-                    LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
-                }
-            }
-
-            if (connection != null) {
-                try {
-                    connection.close();
-                } catch (Exception e) {
-                    LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
-                }
-            }
         }
     }
 
     /** Complex test for Postgis store wrapping. */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     @Test
     public void testPostgisWrapping() throws Exception {
         final File workDir = new File(TestData.file(this, "."), tempFolderNameWrap);

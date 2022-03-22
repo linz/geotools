@@ -32,7 +32,6 @@ import org.geotools.feature.FeatureCollection;
 import org.geotools.feature.NameImpl;
 import org.opengis.feature.type.Name;
 import org.opengis.filter.FilterFactory2;
-import org.opengis.filter.capability.FunctionName;
 import org.opengis.filter.expression.Expression;
 
 /**
@@ -328,8 +327,7 @@ abstract class Value {
         public org.opengis.filter.expression.Expression toExpression() {
             // turn function call if possible
             org.opengis.filter.expression.Expression[] params =
-                    this.parameters
-                            .stream()
+                    this.parameters.stream()
                             .map(v -> v.toExpression())
                             .toArray(s -> new org.opengis.filter.expression.Expression[s]);
             return FF.function(this.name, params);
@@ -499,11 +497,6 @@ abstract class Value {
             } catch (Exception e) {
                 throw new RuntimeException("Error looking up process info", e);
             }
-        }
-
-        private boolean isRenderingTransformation(FunctionName fn) {
-            // TODO Auto-generated method stub
-            return false;
         }
     }
 

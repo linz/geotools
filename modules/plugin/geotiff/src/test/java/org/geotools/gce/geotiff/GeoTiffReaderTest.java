@@ -28,6 +28,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import it.geosolutions.imageio.maskband.DatasetLayout;
+import it.geosolutions.imageio.stream.input.FileImageInputStreamExtImpl;
 import it.geosolutions.imageio.utilities.ImageIOUtilities;
 import it.geosolutions.jaiext.range.NoDataContainer;
 import it.geosolutions.jaiext.range.Range;
@@ -53,6 +54,7 @@ import javax.media.jai.ImageLayout;
 import javax.media.jai.Interpolation;
 import javax.media.jai.PlanarImage;
 import javax.media.jai.ROI;
+import javax.media.jai.RenderedOp;
 import javax.media.jai.operator.MosaicDescriptor;
 import org.geotools.coverage.grid.GridCoverage2D;
 import org.geotools.coverage.grid.GridEnvelope2D;
@@ -68,6 +70,7 @@ import org.geotools.coverage.processing.CoverageProcessor;
 import org.geotools.coverage.processing.operation.Scale;
 import org.geotools.coverage.util.CoverageUtilities;
 import org.geotools.data.DataSourceException;
+import org.geotools.data.FileGroupProvider;
 import org.geotools.data.PrjFileReader;
 import org.geotools.geometry.DirectPosition2D;
 import org.geotools.geometry.GeneralEnvelope;
@@ -354,6 +357,7 @@ public class GeoTiffReaderTest {
         }
     }
 
+    @SuppressWarnings("PMD.SimplifiableTestAssertion") // envelope comparison with tolerance
     private void writeAndReadBackCheck(
             GridCoverage2D coverage, AbstractGridFormat format, File writeDirectory, Object o)
             throws IOException, FactoryException {
@@ -1087,6 +1091,50 @@ public class GeoTiffReaderTest {
         assertEquals(resolutions[1], availableResolutions[0][1], delta);
     }
 
+    @Test
+    //    @Ignore
+    public void testExternalOverviewsDisabled() throws Exception {
+        final File file = TestData.file(GeoTiffReaderTest.class, "ovr.tif");
+        assertNotNull(file);
+        assertTrue(file.exists());
+        GeoTiffReader reader =
+                new GeoTiffReader(file, new Hints(Hints.SKIP_EXTERNAL_OVERVIEWS, true));
+
+        // no external overviews, no overviews period
+        assertEquals(0, reader.getDatasetLayout().getNumExternalOverviews());
+        double[][] availableResolutions = reader.getResolutionLevels();
+        assertEquals(1, availableResolutions.length);
+
+        // no external files
+        List<FileGroupProvider.FileGroup> files = reader.getFiles();
+        assertEquals(1, files.size());
+
+        // read from reader
+        final ParameterValue<GridGeometry2D> gg =
+                AbstractGridFormat.READ_GRIDGEOMETRY2D.createValue();
+        final GeneralEnvelope envelope = reader.getOriginalEnvelope();
+        final Dimension dim = new Dimension();
+        dim.setSize(
+                reader.getOriginalGridRange().getSpan(0) / 64.0,
+                reader.getOriginalGridRange().getSpan(1) / 64.0);
+        final Rectangle rasterArea = ((GridEnvelope2D) reader.getOriginalGridRange());
+        rasterArea.setSize(dim);
+        final GridEnvelope2D range = new GridEnvelope2D(rasterArea);
+        GridGeometry2D gridGeometry = new GridGeometry2D(range, envelope);
+        gg.setValue(gridGeometry);
+
+        GridCoverage2D coverage = reader.read(new GeneralParameterValue[] {gg});
+        RenderedOp op = (RenderedOp) coverage.getRenderedImage();
+        @SuppressWarnings("PMD.CloseResource") // closed along with the coverage
+        FileImageInputStreamExtImpl fis =
+                (FileImageInputStreamExtImpl) op.getParameterBlock().getParameters().get(0);
+        assertEquals("ovr.tif", fis.getTarget().getName());
+
+        // cleanup
+        coverage.dispose(true);
+        reader.dispose();
+    }
+
     /**
      * The leak geotiff is a strange geotiff with PixelScale and TiePoints that are all 0 hence the
      * matrix we come up with is all 0 and not invertibile.
@@ -1254,6 +1302,35 @@ public class GeoTiffReaderTest {
             assertEquals(noData, sample, 0d);
 
             // Make sure that noData isn't rescaled too
+        } finally {
+            if (coverage != null) {
+                ImageUtilities.disposeImage(coverage.getRenderedImage());
+                coverage.dispose(true);
+            }
+        }
+    }
+
+    @Test
+    public void testNodataFloatCast() throws IOException {
+        // has a very large nodata value with different values in float and double
+        final File scaleOffset =
+                TestData.file(GeoTiffReaderTest.class, "float32_nodata_negmax.tif");
+        GeoTiffReader reader = new GeoTiffReader(scaleOffset);
+
+        // read with explicit request not to rescale
+        GridCoverage2D coverage = null;
+        try {
+            coverage = reader.read(null);
+            ImageWorker iw = new ImageWorker(coverage.getRenderedImage());
+
+            Range noDataRange = iw.getNoData();
+            double noData = noDataRange.getMin().doubleValue();
+            assertEquals(-3.40282306073709653E38, noData, 0d);
+
+            // The pixel in the top right corner should be nodata, check that the range contains it
+            Raster data = iw.getRenderedImage().getData();
+            double sample = data.getSampleDouble(data.getWidth() - 1, 0, 0);
+            assertTrue(noDataRange.contains(sample));
         } finally {
             if (coverage != null) {
                 ImageUtilities.disposeImage(coverage.getRenderedImage());

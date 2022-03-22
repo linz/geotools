@@ -17,18 +17,19 @@
 package org.geotools.data.informix;
 
 import java.util.HashMap;
+import java.util.Map;
 import junit.framework.TestCase;
 import org.geotools.jdbc.JDBCDataStoreFactory;
 
 public class InformixDataStoreFactoryTest extends TestCase {
     InformixDataStoreFactory factory;
 
-    protected void setUp() throws Exception {
+    protected void setUp() {
         factory = new InformixDataStoreFactory();
     }
 
-    public void testCanProcess() throws Exception {
-        HashMap params = new HashMap();
+    public void testCanProcess() {
+        Map<String, Object> params = new HashMap<>();
         assertFalse(factory.canProcess(params));
 
         params.put(JDBCDataStoreFactory.NAMESPACE.key, "http://www.geotools.org/test");
@@ -38,6 +39,7 @@ public class InformixDataStoreFactoryTest extends TestCase {
         params.put(JDBCDataStoreFactory.HOST.key, "localhost");
         params.put(JDBCDataStoreFactory.PORT.key, "9088");
         params.put(JDBCDataStoreFactory.USER.key, "informix");
+        params.put("jdbcUrl", "jdbc:informix-sqli://localhost:9088/geotest");
         assertTrue(factory.canProcess(params));
     }
 }

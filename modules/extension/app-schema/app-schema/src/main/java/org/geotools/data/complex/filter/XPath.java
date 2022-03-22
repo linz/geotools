@@ -19,6 +19,7 @@ package org.geotools.data.complex.filter;
 
 import static org.geotools.data.complex.AbstractMappingFeatureIterator.MULTI_VALUE_TYPE;
 import static org.geotools.data.complex.AbstractMappingFeatureIterator.UNBOUNDED_MULTI_VALUE;
+import static org.geotools.data.complex.util.ComplexFeatureConstants.MAPPED_ATTRIBUTE_INDEX;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -276,11 +277,8 @@ public class XPath extends XPathUtil {
                                             new GeometryTypeImpl(
                                                     targetNodeType.getName(),
                                                     targetNodeType.getBinding(),
-                                                    crs != null
-                                                            ? crs
-                                                            : ((GeometryDescriptor)
-                                                                            actualDescriptor)
-                                                                    .getCoordinateReferenceSystem(),
+                                                    ((GeometryDescriptor) actualDescriptor)
+                                                            .getCoordinateReferenceSystem(),
                                                     targetNodeType.isIdentified(),
                                                     targetNodeType.isAbstract(),
                                                     targetNodeType.getRestrictions(),
@@ -486,11 +484,7 @@ public class XPath extends XPathUtil {
                                 int valueIndex = 1;
                                 for (Attribute stepValue : values) {
                                     Object mappedIndex =
-                                            stepValue
-                                                    .getUserData()
-                                                    .get(
-                                                            ComplexFeatureConstants
-                                                                    .MAPPED_ATTRIBUTE_INDEX);
+                                            stepValue.getUserData().get(MAPPED_ATTRIBUTE_INDEX);
                                     if (mappedIndex == null) {
                                         mappedIndex = valueIndex;
                                     }
@@ -509,20 +503,11 @@ public class XPath extends XPathUtil {
                                 // view..
                                 boolean sameIndex = true;
                                 if (index > -1) {
-                                    if (stepValue
-                                            .getUserData()
-                                            .containsKey(
-                                                    ComplexFeatureConstants
-                                                            .MAPPED_ATTRIBUTE_INDEX)) {
-                                        sameIndex =
-                                                (index
-                                                        == Integer.parseInt(
-                                                                String.valueOf(
-                                                                        stepValue
-                                                                                .getUserData()
-                                                                                .get(
-                                                                                        ComplexFeatureConstants
-                                                                                                .MAPPED_ATTRIBUTE_INDEX))));
+                                    Map<Object, Object> userData = stepValue.getUserData();
+                                    if (userData.containsKey(MAPPED_ATTRIBUTE_INDEX)) {
+                                        Object idxObject = userData.get(MAPPED_ATTRIBUTE_INDEX);
+                                        int parsedIdx = Integer.parseInt(String.valueOf(idxObject));
+                                        sameIndex = (index == parsedIdx);
                                     }
                                 }
                                 if (sameIndex && stepValue.getValue().equals(convertedValue)) {
@@ -582,9 +567,7 @@ public class XPath extends XPathUtil {
             }
             if (index > -1) {
                 // set attribute index if specified so it can be retrieved later for grouping
-                leafAttribute
-                        .getUserData()
-                        .put(ComplexFeatureConstants.MAPPED_ATTRIBUTE_INDEX, index);
+                leafAttribute.getUserData().put(MAPPED_ATTRIBUTE_INDEX, index);
             }
             List newValue = new ArrayList();
             newValue.addAll((Collection) parent.getValue());
@@ -609,7 +592,6 @@ public class XPath extends XPathUtil {
      * @param value List of features
      * @return The attribute with simple content
      */
-    @SuppressWarnings("unchecked")
     private List<Property> getSimpleContentList(Object value) {
         if (value == null || !(value instanceof Collection)) {
             return null;
@@ -681,7 +663,6 @@ public class XPath extends XPathUtil {
      * @param value value to check
      * @return true if the value is an arraylist containing a feature with the descriptor.
      */
-    @SuppressWarnings("unchecked")
     private boolean isFeatureChainedSimpleContent(AttributeDescriptor descriptor, Object value) {
         boolean isFeatureChainedSimpleContent = false;
         if (value != null) {
@@ -713,7 +694,6 @@ public class XPath extends XPathUtil {
     }
 
     /** Return value converted into a type suitable for this descriptor. */
-    @SuppressWarnings("serial")
     private Object convertValue(final AttributeDescriptor descriptor, final Object value) {
         final AttributeType type = descriptor.getType();
         Class<?> binding = type.getBinding();

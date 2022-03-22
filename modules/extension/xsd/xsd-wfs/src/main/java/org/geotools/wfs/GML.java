@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -148,7 +149,7 @@ public class GML {
         }
     }
 
-    private Charset encoding = Charset.forName("UTF-8");
+    private Charset encoding = StandardCharsets.UTF_8;
 
     private URL baseURL;
 
@@ -821,7 +822,6 @@ public class GML {
         return null; // not available as a feature!
     }
 
-    @SuppressWarnings("unchecked")
     protected XSDSchema xsd(SimpleFeatureType simpleFeatureType) throws IOException {
         XSDFactory factory = XSDFactory.eINSTANCE;
         XSDSchema xsd = factory.createXSDSchema();
@@ -888,7 +888,6 @@ public class GML {
      * @param BASE_TYPE definition to use as the base type, or null
      * @return XSDComplexTypeDefinition generated for the provided type
      */
-    @SuppressWarnings("unchecked")
     protected XSDComplexTypeDefinition xsd(
             XSDSchema xsd, ComplexType type, final XSDComplexTypeDefinition BASE_TYPE) {
         XSDFactory factory = XSDFactory.eINSTANCE;

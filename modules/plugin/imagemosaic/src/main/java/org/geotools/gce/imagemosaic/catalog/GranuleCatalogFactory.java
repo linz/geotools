@@ -29,7 +29,7 @@ import org.geotools.data.DataStore;
 import org.geotools.data.DataStoreFactorySpi;
 import org.geotools.data.Repository;
 import org.geotools.data.shapefile.ShapefileDataStoreFactory;
-import org.geotools.gce.imagemosaic.URLSourceSPIProvider;
+import org.geotools.gce.imagemosaic.SourceSPIProviderFactory;
 import org.geotools.gce.imagemosaic.Utils;
 import org.geotools.jdbc.JDBCDataStore;
 import org.geotools.util.URLs;
@@ -86,9 +86,18 @@ public abstract class GranuleCatalogFactory {
 
         // locking wrappers
         if (store instanceof Wrapper) {
-            store =
-                    Optional.ofNullable((DataStore) ((Wrapper) store).unwrap(JDBCDataStore.class))
-                            .orElse(store);
+            try {
+                store =
+                        Optional.ofNullable(
+                                        (DataStore) ((Wrapper) store).unwrap(JDBCDataStore.class))
+                                .orElse(store);
+            } catch (IllegalArgumentException e) {
+                LOGGER.log(
+                        Level.FINER,
+                        "The store is a wrapper but does not wrap a JDBCDataStore "
+                                + "(not a problem per se, just a note)",
+                        e);
+            }
         }
         if (!(store instanceof JDBCDataStore)) {
             catalog = new LockingGranuleCatalog(catalog, hints);
@@ -124,7 +133,10 @@ public abstract class GranuleCatalogFactory {
             params.put(Utils.Prop.SUGGESTED_IS_SPI, catalogConfigurationBean.getSuggestedIsSPI());
 
         params.put(Utils.Prop.HETEROGENEOUS, catalogConfigurationBean.isHeterogeneous());
-        URLSourceSPIProvider urlSourceSpiProvider =
+        params.put(
+                Utils.Prop.SKIP_EXTERNAL_OVERVIEWS,
+                catalogConfigurationBean.isSkipExternalOverviews());
+        SourceSPIProviderFactory urlSourceSpiProvider =
                 catalogConfigurationBean.getUrlSourceSPIProvider();
         params.put(
                 Utils.Prop.COG,

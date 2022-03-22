@@ -26,7 +26,7 @@
 			<isset property="build.directory" />
 		</condition>
 
-        <condition property="project.version" value="${project.version}" else="26-SNAPSHOT">
+        <condition property="project.version" value="${project.version}" else="27-SNAPSHOT">
 			<isset property="project.version" />
 		</condition>
 
@@ -42,10 +42,10 @@
 	</target>
 
 	<target name="index" depends="init">
-		<antcall target="sphinx-ignore-warnings">
+		<antcall target="sphinx">
 			<param name="id" value="index"/>
 			<param name="build" value="html"/>
-		</antcall>	
+		</antcall>
 	</target>
 
 	<target name="user" depends="init">
@@ -73,16 +73,16 @@
 	</target>
 
 	<target name="sphinx-ignore-warnings" if="sphinx.available">
-        <echo message="Running sphinx-build -D release=${project.version} -q -j 2 -b ${build} -d &quot;${build.directory}/${id}/doctrees&quot; . &quot;${build.directory}/${id}/${build}&quot;"/>
+        <echo message="Running sphinx-build -D release=${project.version} -q -j auto -b ${build} -d &quot;${build.directory}/${id}/doctrees&quot; . &quot;${build.directory}/${id}/${build}&quot;"/>
 		<exec executable="sphinx-build" failonerror="true" dir="${basedir}/${id}">
-			<arg line="-D release=${project.version} -q -j 2 -b ${build} -d &quot;${build.directory}/${id}/doctrees&quot; . &quot;${build.directory}/${id}/${build}&quot;"/>
+			<arg line="-D release=${project.version} -q -j auto -b ${build} -d &quot;${build.directory}/${id}/doctrees&quot; . &quot;${build.directory}/${id}/${build}&quot;"/>
 		</exec>
 	</target>
     
     <target name="sphinx" if="sphinx.available">
-        <echo message="Running sphinx-build -D release=${project.version} -q -W -j 2 -b ${build} -d &quot;${build.directory}/${id}/doctrees&quot; . &quot;${build.directory}/${id}/${build}&quot;"/>
+        <echo message="Running sphinx-build -D release=${project.version} -q -W --keep-going -j auto -b ${build} -d &quot;${build.directory}/${id}/doctrees&quot; . &quot;${build.directory}/${id}/${build}&quot;"/>
 		<exec executable="sphinx-build" failonerror="true" dir="${basedir}/${id}">
-			<arg line="-D release=${project.version} -q -W -j 2 -b ${build} -d &quot;${build.directory}/${id}/doctrees&quot; . &quot;${build.directory}/${id}/${build}&quot;"/>
+			<arg line="-D release=${project.version} -q -W --keep-going -j auto -b ${build} -d &quot;${build.directory}/${id}/doctrees&quot; . &quot;${build.directory}/${id}/${build}&quot;"/>
 		</exec>
 	</target>
 

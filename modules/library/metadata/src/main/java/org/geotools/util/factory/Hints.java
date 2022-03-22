@@ -774,7 +774,12 @@ public class Hints extends RenderingHints {
             new ClassKey("java.util.concurrent.ExecutorService");
 
     /**
-     * Resample tolerance (defaults to 0.333)
+     * Default resample tolerance value, if not specified via the {@link #RESAMPLE_TOLERANCE} hint
+     */
+    public static double DEFAULT_RESAMPLE_TOLERANCE = 0.333;
+
+    /**
+     * Resample tolerance (defaults to {@link #DEFAULT_RESAMPLE_TOLERANCE})
      *
      * <p>To set on the command line:
      *
@@ -805,6 +810,13 @@ public class Hints extends RenderingHints {
      */
     public static final Key GRANULE_REMOVAL_POLICY =
             new Key("org.geotools.coverage.grid.io.GranuleRemovalPolicy");
+
+    /**
+     * Indicates whether to skip external overview files when loading a Coverage (on by default in
+     * most raster readers). The lookup can be costly if the files are on a remote server or network
+     * disk.
+     */
+    public static final Key SKIP_EXTERNAL_OVERVIEWS = new Hints.Key(Boolean.class);
 
     ////////////////////////////////////////////////////////////////////////
     ////////                                                        ////////

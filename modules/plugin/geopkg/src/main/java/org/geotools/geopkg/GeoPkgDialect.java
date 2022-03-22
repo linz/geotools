@@ -265,6 +265,9 @@ public class GeoPkgDialect extends PreparedStatementSQLDialect {
         // but will allow GeoTools to handle some usual java.sql.Types
         // not mapped to raw SQL types by org.sqlite.jdbc3.JDBC3DatabaseMetaData.getTypeInfo()
 
+        // Strings
+        overrides.put(Types.CLOB, "TEXT");
+
         // Numbers
         overrides.put(Types.BOOLEAN, "BOOLEAN");
         overrides.put(Types.TINYINT, "TINYINT");
@@ -564,7 +567,7 @@ public class GeoPkgDialect extends PreparedStatementSQLDialect {
             // try looking up in spatial ref sys
             String sql =
                     String.format(
-                            "SELECT definition FROM %s WHERE auth_srid = %d",
+                            "SELECT definition FROM %s WHERE organization_coordsys_id = %d",
                             SPATIAL_REF_SYS, srid);
             LOGGER.fine(sql);
 
@@ -830,7 +833,7 @@ public class GeoPkgDialect extends PreparedStatementSQLDialect {
                                 envelope.getMaxX(),
                                 envelope.getMaxY(),
                                 null);
-                split[0] = ff.and(split[0], bbox);
+                split[0] = Filter.INCLUDE.equals(split[0]) ? bbox : ff.and(split[0], bbox);
 
                 return split;
             }
@@ -857,7 +860,7 @@ public class GeoPkgDialect extends PreparedStatementSQLDialect {
             }
             // check if geometris
             if (ad instanceof GeometryDescriptor) {
-                if (geometryAttribute != null) {
+                if (geometryAttribute != null && !geometryAttribute.equals(ad)) {
                     // two different attributes found
                     return null;
                 }
@@ -979,5 +982,10 @@ public class GeoPkgDialect extends PreparedStatementSQLDialect {
                     (EnumMapper) ad.getUserData().get(GPKG_ARRAY_ENUM_MAP));
         }
         return super.convertValue(value, ad);
+    }
+
+    @Override
+    public boolean canGroupOnGeometry() {
+        return true;
     }
 }

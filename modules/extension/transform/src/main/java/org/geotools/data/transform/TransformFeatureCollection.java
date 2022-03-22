@@ -39,7 +39,6 @@ import org.geotools.util.logging.Logging;
 import org.opengis.feature.FeatureVisitor;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.feature.type.Name;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory;
 import org.opengis.filter.expression.Expression;
@@ -80,7 +79,10 @@ class TransformFeatureCollection extends AbstractFeatureCollection {
     }
 
     @Override
-    @SuppressWarnings("PMD.CloseResource") // convoluted logic, but "fi" is closed or returned
+    @SuppressWarnings({
+        "PMD.CloseResource",
+        "PMD.UseTryWithResources"
+    }) // convoluted logic, but "fi" is closed or returned
     protected Iterator<SimpleFeature> openIterator() {
         SimpleFeatureIterator fi = null;
         Iterator<SimpleFeature> result = null;
@@ -146,20 +148,14 @@ class TransformFeatureCollection extends AbstractFeatureCollection {
             }
 
             // sigh, fall back to brute force computation
-            SimpleFeatureIterator fi = null;
-            try {
+            try (SimpleFeatureIterator fi = source.getFeatures(query).features()) {
                 size = 0;
-                fi = source.getFeatures(query).features();
                 while (fi.hasNext()) {
                     fi.next();
                     size++;
                 }
 
                 return size;
-            } finally {
-                if (fi != null) {
-                    fi.close();
-                }
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -285,11 +281,7 @@ class TransformFeatureCollection extends AbstractFeatureCollection {
 
     protected void delegateVisitor(FeatureVisitor visitor, ProgressListener progress)
             throws IOException {
-        Name typeName = transformer.getSource().getName();
         Query txQuery = transformer.transformQuery(query);
-        source.getDataStore()
-                .getFeatureSource(typeName)
-                .getFeatures(txQuery)
-                .accepts(visitor, progress);
+        transformer.getSource().getFeatures(txQuery).accepts(visitor, progress);
     }
 }
