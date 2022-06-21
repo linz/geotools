@@ -26,7 +26,10 @@ import java.io.InputStreamReader;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Locale;
 import java.util.Properties;
+import java.util.logging.Handler;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.sql.DataSource;
 import org.apache.commons.dbcp.BasicDataSource;
@@ -75,7 +78,17 @@ public abstract class JDBCTestSetup {
     }
 
     public void setUp() throws Exception {
-        //
+        // I don't know how else to set the log level
+        Level debugLevel = Level.FINE;
+        Logger log = LOGGER;
+        while (log != null) {
+            log.setLevel(debugLevel);
+            for (int i = 0; i < log.getHandlers().length; i++) {
+                Handler h = log.getHandlers()[i];
+                h.setLevel(debugLevel);
+            }
+            log = log.getParent();
+        }
     }
 
     protected void initializeDatabase() throws Exception {}
