@@ -91,7 +91,7 @@ public class InformixDataStoreFactory extends JDBCDataStoreFactory {
 
     @Override
     protected String getJDBCUrl(Map<String, ?> params) throws IOException {
-        // Read url from informix-sql.properties as jdbc url
+        // Get url from informix-sql.properties as jdbc url
         if (params.containsKey("url")) {
             return (String) params.get("url");
         }
