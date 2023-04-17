@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import org.geotools.data.jdbc.FilterToSQL;
 import org.geotools.filter.FilterCapabilities;
+import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.LinearRing;
 import org.opengis.filter.expression.Expression;
@@ -65,6 +66,17 @@ public class InformixFilterToSQL extends FilterToSQL {
     @Override
     protected void visitLiteralGeometry(Literal expression) throws IOException {
         Geometry g = (Geometry) evaluateLiteral(expression, Geometry.class);
+        if (currentSRID == 1) {
+            for (Coordinate c : g.getCoordinates()) {
+                double longitude = c.getOrdinate(Coordinate.X);
+                if (longitude < -180.0) {
+                    c.setOrdinate(Coordinate.X, longitude + 360.0);
+                } else if (longitude > 180.0) {
+                    c.setOrdinate(Coordinate.X, longitude - 360.0);
+                }
+            }
+            g.geometryChanged();
+        }
         if (g instanceof LinearRing) {
             // WKT does not support linear rings
             g = g.getFactory().createLineString(((LinearRing) g).getCoordinateSequence());
