@@ -7,13 +7,13 @@
 
         Version: $Id$
      ======================================================================= -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0                                http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0                                https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <groupId>org.geotools</groupId>
     <artifactId>library</artifactId>
-    <version>30-SNAPSHOT</version>
+    <version>31-SNAPSHOT</version>
   </parent>
 
   <!-- =========================================================== -->
@@ -256,21 +256,19 @@
       <artifactId>jt-shadedrelief</artifactId>
       <exclusions>
         <exclusion>
-          <artifactId>jts</artifactId>
           <groupId>com.vividsolutions</groupId>
+          <artifactId>jts</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
 
     <!-- Test dependencies -->
-    <!--
     <dependency>
       <groupId>org.geotools</groupId>
-      <artifactId>gt-shapefile</artifactId>
+      <artifactId>gt-iau-wkt</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
--->
     <dependency>
       <groupId>org.geotools</groupId>
       <artifactId>gt-epsg-hsql</artifactId>

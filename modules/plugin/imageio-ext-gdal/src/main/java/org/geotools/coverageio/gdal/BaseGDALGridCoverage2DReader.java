@@ -17,28 +17,33 @@
 package org.geotools.coverageio.gdal;
 
 import it.geosolutions.imageio.gdalframework.GDALCommonIIOImageMetadata;
+import it.geosolutions.imageio.pam.PAMDataset;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
+import java.awt.image.DataBuffer;
 import java.io.IOException;
+import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.imageio.ImageReader;
 import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.spi.ImageReaderSpi;
+import org.geotools.api.data.DataSourceException;
+import org.geotools.api.data.ResourceInfo;
+import org.geotools.api.referencing.FactoryException;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
+import org.geotools.api.referencing.datum.PixelInCell;
+import org.geotools.api.referencing.operation.TransformException;
 import org.geotools.coverage.grid.GridEnvelope2D;
 import org.geotools.coverage.grid.io.AbstractGridFormat;
 import org.geotools.coverage.grid.io.GridCoverage2DReader;
 import org.geotools.coverageio.BaseGridCoverage2DReader;
-import org.geotools.data.DataSourceException;
-import org.geotools.geometry.GeneralEnvelope;
+import org.geotools.geometry.GeneralBounds;
 import org.geotools.geometry.PixelTranslation;
+import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.referencing.CRS;
 import org.geotools.referencing.operation.transform.ProjectiveTransform;
 import org.geotools.util.factory.Hints;
-import org.opengis.referencing.FactoryException;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
-import org.opengis.referencing.datum.PixelInCell;
-import org.opengis.referencing.operation.TransformException;
 
 /**
  * Base class for GridCoverage data access, leveraging on GDAL Java bindings provided by the
@@ -55,6 +60,8 @@ public abstract class BaseGDALGridCoverage2DReader extends BaseGridCoverage2DRea
     /** Logger. */
     private static final Logger LOGGER =
             org.geotools.util.logging.Logging.getLogger(BaseGDALGridCoverage2DReader.class);
+
+    private PAMDataset pamDataset;
 
     /**
      * Creates a new instance of a {@link BaseGDALGridCoverage2DReader}. I assume nothing about file
@@ -92,7 +99,7 @@ public abstract class BaseGDALGridCoverage2DReader extends BaseGridCoverage2DRea
             throw new DataSourceException(
                     "Unexpected error! Metadata should be an instance of the expected class: GDALCommonIIOImageMetadata.");
         }
-        parseCommonMetadata((GDALCommonIIOImageMetadata) metadata);
+        parseCommonMetadata((GDALCommonIIOImageMetadata) metadata, reader);
 
         // //
         //
@@ -119,7 +126,8 @@ public abstract class BaseGDALGridCoverage2DReader extends BaseGridCoverage2DRea
      * @param metadata a {@link GDALCommonIIOImageMetadata} metadata instance from where to search
      *     needed properties.
      */
-    private void parseCommonMetadata(final GDALCommonIIOImageMetadata metadata) {
+    private void parseCommonMetadata(final GDALCommonIIOImageMetadata metadata, ImageReader reader)
+            throws IOException {
 
         // ////////////////////////////////////////////////////////////////////
         //
@@ -157,13 +165,16 @@ public abstract class BaseGDALGridCoverage2DReader extends BaseGridCoverage2DRea
                 if ((wkt != null) && !(wkt.equalsIgnoreCase(""))) {
                     try {
                         this.crs = CRS.parseWKT(wkt);
-                        final Integer epsgCode = CRS.lookupEpsgCode(this.crs, true);
-                        // Force the creation of the CRS directly from the
-                        // retrieved EPSG code in order to prevent weird transformation
-                        // between "same" CRSs having slight differences.
-                        // TODO: cache epsgCode-CRSs
-                        if (epsgCode != null) {
-                            this.crs = CRS.decode("EPSG:" + epsgCode);
+                        if (crs != null) {
+                            crs = CRS.getHorizontalCRS(crs);
+                            final Integer epsgCode = CRS.lookupEpsgCode(this.crs, true);
+                            // Force the creation of the CRS directly from the
+                            // retrieved EPSG code in order to prevent weird transformation
+                            // between "same" CRSs having slight differences.
+                            // TODO: cache epsgCode-CRSs
+                            if (epsgCode != null) {
+                                this.crs = CRS.decode("EPSG:" + epsgCode);
+                            }
                         }
                     } catch (FactoryException fe) {
                         // unable to get CRS from WKT
@@ -187,6 +198,18 @@ public abstract class BaseGDALGridCoverage2DReader extends BaseGridCoverage2DRea
             this.originalGridRange =
                     new GridEnvelope2D(
                             new Rectangle(0, 0, metadata.getWidth(), metadata.getHeight()));
+
+        // NO DATA
+        this.nodata =
+                Optional.ofNullable(metadata.getNoDataValues())
+                        .filter(nd -> nd.length > 0)
+                        .map(nd -> nd[0])
+                        .orElse(null);
+        if (nodata != null) {
+            if (reader.getRawImageType(0).getSampleModel().getDataType() == DataBuffer.TYPE_FLOAT) {
+                this.nodata = Double.valueOf(nodata.floatValue());
+            }
+        }
 
         // //
         //
@@ -216,7 +239,7 @@ public abstract class BaseGDALGridCoverage2DReader extends BaseGridCoverage2DRea
                         this.originalEnvelope =
                                 CRS.transform(
                                         ProjectiveTransform.create(tempTransform),
-                                        new GeneralEnvelope(
+                                        new GeneralBounds(
                                                 ((GridEnvelope2D) this.originalGridRange)));
                     } catch (IllegalStateException | TransformException e) {
                         if (LOGGER.isLoggable(Level.WARNING)) {
@@ -230,5 +253,24 @@ public abstract class BaseGDALGridCoverage2DReader extends BaseGridCoverage2DRea
                 this.raster2Model = ProjectiveTransform.create(tempTransform);
             }
         }
+
+        this.pamDataset = metadata.getPamDataset();
+    }
+
+    @Override
+    public synchronized ResourceInfo getInfo(String subname) {
+        if (this.resourceInfo != null) {
+            return new GDALResourceInfo(this.resourceInfo);
+        }
+
+        GDALResourceInfo localInfo = new GDALResourceInfo();
+        resourceInfo = localInfo;
+        localInfo.setName(subname);
+        localInfo.setBounds(new ReferencedEnvelope(this.getOriginalEnvelope()));
+        localInfo.setCRS(getCoordinateReferenceSystem());
+        localInfo.setTitle(subname);
+        localInfo.setPAMDataset(pamDataset);
+
+        return new GDALResourceInfo(this.resourceInfo);
     }
 }

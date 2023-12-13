@@ -17,7 +17,9 @@
 package org.geotools.coverageio;
 
 import it.geosolutions.imageio.stream.input.FileImageInputStreamExtImpl;
+import it.geosolutions.jaiext.range.NoDataContainer;
 import it.geosolutions.jaiext.vectorbin.ROIGeometry;
+import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
@@ -26,7 +28,9 @@ import java.awt.image.SampleModel;
 import java.awt.image.renderable.ParameterBlock;
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -36,24 +40,28 @@ import javax.imageio.spi.ImageReaderSpi;
 import javax.media.jai.JAI;
 import javax.media.jai.PlanarImage;
 import javax.media.jai.ROI;
+import org.geotools.api.coverage.ColorInterpretation;
+import org.geotools.api.coverage.grid.GridCoverage;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
+import org.geotools.api.referencing.operation.MathTransform;
+import org.geotools.coverage.Category;
 import org.geotools.coverage.GridSampleDimension;
 import org.geotools.coverage.TypeMap;
 import org.geotools.coverage.grid.GridCoverageFactory;
 import org.geotools.coverage.grid.io.footprint.FootprintBehavior;
 import org.geotools.coverage.grid.io.footprint.MultiLevelROI;
 import org.geotools.coverage.util.CoverageUtilities;
-import org.geotools.geometry.GeneralEnvelope;
+import org.geotools.geometry.GeneralBounds;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.geometry.jts.ReferencedEnvelope;
+import org.geotools.metadata.i18n.Vocabulary;
+import org.geotools.metadata.i18n.VocabularyKeys;
 import org.geotools.referencing.operation.matrix.XAffineTransform;
 import org.geotools.referencing.operation.transform.ConcatenatedTransform;
 import org.geotools.referencing.operation.transform.ProjectiveTransform;
+import org.geotools.util.NumberRange;
 import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Geometry;
-import org.opengis.coverage.ColorInterpretation;
-import org.opengis.coverage.grid.GridCoverage;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
-import org.opengis.referencing.operation.MathTransform;
 
 /**
  * A RasterLayerResponse. An instance of this class is produced everytime a requestCoverage is
@@ -91,7 +99,7 @@ class RasterLayerResponse {
     private MathTransform raster2Model;
 
     /** The base envelope related to the input coverage */
-    private GeneralEnvelope coverageEnvelope;
+    private GeneralBounds coverageEnvelope;
 
     /** The CRS of the input coverage */
     private CoordinateReferenceSystem coverageCRS;
@@ -363,6 +371,19 @@ class RasterLayerResponse {
      */
     protected GridCoverage createCoverageFromImage(PlanarImage image, MathTransform raster2Model)
             throws IOException {
+        Double noData = originatingCoverageRequest.getNoData();
+        final Map<String, Object> properties = new HashMap<>();
+        Category noDataCategory = null;
+        if (noData != null && !noData.isInfinite()) {
+            noDataCategory =
+                    new Category(
+                            Vocabulary.formatInternational(VocabularyKeys.NODATA),
+                            new Color[] {new Color(0, 0, 0, 0)},
+                            NumberRange.create(noData, noData));
+            CoverageUtilities.setNoDataProperty(properties, Double.valueOf(noData));
+            image.setProperty(NoDataContainer.GC_NODATA, new NoDataContainer(noData));
+        }
+
         // creating bands
         final SampleModel sm = image.getSampleModel();
         final ColorModel cm = image.getColorModel();
@@ -381,7 +402,11 @@ class RasterLayerResponse {
             } else {
                 bandName = colorInterpretation.name();
             }
-            bands[i] = new GridSampleDimension(bandName);
+            Category[] categories = null;
+            if (noDataCategory != null) {
+                categories = new Category[] {noDataCategory};
+            }
+            bands[i] = new GridSampleDimension(bandName, categories, null);
         }
 
         // creating coverage
@@ -391,7 +416,7 @@ class RasterLayerResponse {
         }
 
         return coverageFactory.create(
-                coverageName, image, new GeneralEnvelope(coverageEnvelope), bands, null, null);
+                coverageName, image, new GeneralBounds(coverageEnvelope), bands, null, properties);
     }
 
     /**

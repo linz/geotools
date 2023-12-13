@@ -26,19 +26,25 @@ import java.io.Serializable;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
-import org.geotools.data.DataStore;
-import org.geotools.data.DataStoreFinder;
+import org.geotools.api.data.DataStore;
+import org.geotools.api.data.DataStoreFinder;
+import org.geotools.api.data.Query;
+import org.geotools.api.data.SimpleFeatureSource;
+import org.geotools.api.data.SimpleFeatureStore;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.filter.FilterFactory;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
 import org.geotools.data.DataUtilities;
-import org.geotools.data.Query;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
-import org.geotools.data.simple.SimpleFeatureSource;
-import org.geotools.data.simple.SimpleFeatureStore;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.feature.NameImpl;
 import org.geotools.feature.simple.SimpleFeatureBuilder;
 import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.geotools.geometry.jts.ReferencedEnvelope;
+import org.geotools.test.TestData;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -47,11 +53,6 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.io.WKTReader;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.filter.Filter;
-import org.opengis.filter.FilterFactory2;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
 public class FlatGeobufDataStoreTest {
 
@@ -59,8 +60,7 @@ public class FlatGeobufDataStoreTest {
 
     @Test
     public void readPoints() throws Exception {
-        URL url =
-                getClass().getClassLoader().getResource("org/geotools/data/flatgeobuf/points.fgb");
+        URL url = TestData.url(FlatGeobufDataStore.class, "points.fgb");
         Map<String, Serializable> params = new HashMap<>();
         params.put("url", url);
         DataStore store = DataStoreFinder.getDataStore(params);
@@ -159,7 +159,7 @@ public class FlatGeobufDataStoreTest {
 
     @Test
     public void readLineStrings() throws Exception {
-        URL url = getClass().getClassLoader().getResource("org/geotools/data/flatgeobuf/lines.fgb");
+        URL url = TestData.url(FlatGeobufDataStore.class, "lines.fgb");
         Map<String, Serializable> params = new HashMap<>();
         params.put("url", url);
         DataStore store = DataStoreFinder.getDataStore(params);
@@ -262,10 +262,7 @@ public class FlatGeobufDataStoreTest {
 
     @Test
     public void readPolygons() throws Exception {
-        URL url =
-                getClass()
-                        .getClassLoader()
-                        .getResource("org/geotools/data/flatgeobuf/polygons.fgb");
+        URL url = TestData.url(FlatGeobufDataStore.class, "polygons.fgb");
         Map<String, Serializable> params = new HashMap<>();
         params.put("url", url);
         DataStore store = DataStoreFinder.getDataStore(params);
@@ -436,10 +433,7 @@ public class FlatGeobufDataStoreTest {
 
     @Test
     public void readMultiPoints() throws Exception {
-        URL url =
-                getClass()
-                        .getClassLoader()
-                        .getResource("org/geotools/data/flatgeobuf/multipoints.fgb");
+        URL url = TestData.url(FlatGeobufDataStore.class, "multipoints.fgb");
         Map<String, Serializable> params = new HashMap<>();
         params.put("url", url);
         DataStore store = DataStoreFinder.getDataStore(params);
@@ -536,10 +530,7 @@ public class FlatGeobufDataStoreTest {
 
     @Test
     public void readMultiLineStrings() throws Exception {
-        URL url =
-                getClass()
-                        .getClassLoader()
-                        .getResource("org/geotools/data/flatgeobuf/multilinestrings.fgb");
+        URL url = TestData.url(FlatGeobufDataStore.class, "multilinestrings.fgb");
         Map<String, Serializable> params = new HashMap<>();
         params.put("url", url);
         DataStore store = DataStoreFinder.getDataStore(params);
@@ -642,10 +633,7 @@ public class FlatGeobufDataStoreTest {
 
     @Test
     public void readMultiPolygons() throws Exception {
-        URL url =
-                getClass()
-                        .getClassLoader()
-                        .getResource("org/geotools/data/flatgeobuf/multipolygons.fgb");
+        URL url = TestData.url(FlatGeobufDataStore.class, "multipolygons.fgb");
         Map<String, Serializable> params = new HashMap<>();
         params.put("url", url);
         DataStore store = DataStoreFinder.getDataStore(params);
@@ -799,11 +787,45 @@ public class FlatGeobufDataStoreTest {
     }
 
     @Test
+    public void readEmpty() throws IOException {
+        SimpleFeatureSource featureSource = getFeatureSource("empty");
+        SimpleFeatureCollection featureCollection = featureSource.getFeatures();
+        try (SimpleFeatureIterator it = featureCollection.features()) {
+            int count = 0;
+            while (it.hasNext()) {
+                it.next();
+                count++;
+            }
+            assertEquals(0, count);
+        }
+    }
+
+    @Test
+    public void readEmptyBbox() throws IOException {
+        SimpleFeatureSource featureSource = getFeatureSource("empty");
+        SimpleFeatureType schema = featureSource.getSchema();
+        FilterFactory ff = CommonFactoryFinder.getFilterFactory();
+        String geometryPropertyName = schema.getGeometryDescriptor().getLocalName();
+        CoordinateReferenceSystem targetCRS =
+                schema.getGeometryDescriptor().getCoordinateReferenceSystem();
+        Envelope env = new Envelope(12, 13, 56, 57);
+        ReferencedEnvelope bbox = new ReferencedEnvelope(env, targetCRS);
+        Filter filter = ff.bbox(ff.property(geometryPropertyName), bbox);
+        Query query = new Query(schema.getTypeName(), filter);
+        SimpleFeatureCollection featureCollection = featureSource.getFeatures(query);
+        try (SimpleFeatureIterator it = featureCollection.features()) {
+            int count = 0;
+            while (it.hasNext()) {
+                it.next();
+                count++;
+            }
+            assertEquals(0, count);
+        }
+    }
+
+    @Test
     public void readCountries() throws IOException {
-        URL url =
-                getClass()
-                        .getClassLoader()
-                        .getResource("org/geotools/data/flatgeobuf/countries.fgb");
+        URL url = TestData.url(FlatGeobufDataStore.class, "countries.fgb");
         Map<String, Serializable> params = new HashMap<>();
         params.put("url", url);
         DataStore store = DataStoreFinder.getDataStore(params);
@@ -844,13 +866,31 @@ public class FlatGeobufDataStoreTest {
     public void readCountriesBbox() throws IOException {
         SimpleFeatureSource featureSource = getFeatureSource("countries");
         SimpleFeatureType schema = featureSource.getSchema();
-        FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2();
+        FilterFactory ff = CommonFactoryFinder.getFilterFactory();
         String geometryPropertyName = schema.getGeometryDescriptor().getLocalName();
         CoordinateReferenceSystem targetCRS =
                 schema.getGeometryDescriptor().getCoordinateReferenceSystem();
         Envelope env = new Envelope(12, 13, 56, 57);
         ReferencedEnvelope bbox = new ReferencedEnvelope(env, targetCRS);
         Filter filter = ff.bbox(ff.property(geometryPropertyName), bbox);
+        Query query = new Query(schema.getTypeName(), filter);
+        SimpleFeatureCollection featureCollection = featureSource.getFeatures(query);
+        try (SimpleFeatureIterator it = featureCollection.features()) {
+            SimpleFeature f1 = it.next();
+            assertEquals("countries.46", f1.getID());
+            SimpleFeature f2 = it.next();
+            assertEquals("countries.48", f2.getID());
+            boolean hasNext = it.hasNext();
+            assertFalse(hasNext);
+        }
+    }
+
+    @Test
+    public void readCountriesFids() throws IOException {
+        SimpleFeatureSource featureSource = getFeatureSource("countries");
+        SimpleFeatureType schema = featureSource.getSchema();
+        FilterFactory ff = CommonFactoryFinder.getFilterFactory();
+        Filter filter = ff.id(ff.featureId("countries.3"), ff.featureId("countries.45"));
         Query query = new Query(schema.getTypeName(), filter);
         SimpleFeatureCollection featureCollection = featureSource.getFeatures(query);
         try (SimpleFeatureIterator it = featureCollection.features()) {
@@ -864,10 +904,38 @@ public class FlatGeobufDataStoreTest {
     }
 
     @Test
+    public void readCountriesFidsInvalid() throws IOException {
+        SimpleFeatureSource featureSource = getFeatureSource("countries");
+        SimpleFeatureType schema = featureSource.getSchema();
+        FilterFactory ff = CommonFactoryFinder.getFilterFactory();
+        Filter filter = ff.id(ff.featureId("countries.noreallong"));
+        Query query = new Query(schema.getTypeName(), filter);
+        SimpleFeatureCollection featureCollection = featureSource.getFeatures(query);
+        try (SimpleFeatureIterator it = featureCollection.features()) {
+            assertFalse(it.hasNext());
+        }
+    }
+
+    @Test
+    public void readCountriesFidsOutOfBounds() throws IOException {
+        SimpleFeatureSource featureSource = getFeatureSource("countries");
+        SimpleFeatureType schema = featureSource.getSchema();
+        FilterFactory ff = CommonFactoryFinder.getFilterFactory();
+        Filter filter = ff.id(ff.featureId("countries.2349873589"));
+        Query query = new Query(schema.getTypeName(), filter);
+        SimpleFeatureCollection featureCollection = featureSource.getFeatures(query);
+        try (SimpleFeatureIterator it = featureCollection.features()) {
+            while (it.hasNext()) {
+                assertFalse(it.hasNext());
+            }
+        }
+    }
+
+    @Test
     public void readCountriesWithNullIntersection() throws IOException {
         SimpleFeatureSource featureSource = getFeatureSource("countries");
         SimpleFeatureType schema = featureSource.getSchema();
-        FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2();
+        FilterFactory ff = CommonFactoryFinder.getFilterFactory();
         String geometryPropertyName = schema.getGeometryDescriptor().getLocalName();
         Filter filter = ff.intersects(ff.property(geometryPropertyName), ff.literal(null));
         Query query = new Query(schema.getTypeName(), filter);
@@ -883,10 +951,7 @@ public class FlatGeobufDataStoreTest {
     }
 
     private SimpleFeatureSource getFeatureSource(String name) throws IOException {
-        URL url =
-                getClass()
-                        .getClassLoader()
-                        .getResource("org/geotools/data/flatgeobuf/" + name + ".fgb");
+        URL url = TestData.url(FlatGeobufDataStore.class, name + ".fgb");
         Map<String, Serializable> params = new HashMap<>();
         params.put("url", url);
         DataStore store = DataStoreFinder.getDataStore(params);

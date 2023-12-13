@@ -22,12 +22,18 @@ import static org.geotools.referencing.operation.projection.MapProjection.Abstra
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.geotools.api.parameter.ParameterValueGroup;
+import org.geotools.api.referencing.FactoryException;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
+import org.geotools.api.referencing.operation.MathTransform;
+import org.geotools.api.referencing.operation.TransformException;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.referencing.CRS;
 import org.geotools.referencing.crs.DefaultGeographicCRS;
 import org.geotools.referencing.operation.projection.MapProjection;
 import org.geotools.referencing.operation.projection.Orthographic;
+import org.geotools.util.SuppressFBWarnings;
 import org.locationtech.jts.densify.Densifier;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
@@ -37,12 +43,8 @@ import org.locationtech.jts.geom.LinearRing;
 import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.geom.impl.CoordinateArraySequence;
-import org.opengis.parameter.ParameterValueGroup;
-import org.opengis.referencing.FactoryException;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
-import org.opengis.referencing.operation.MathTransform;
-import org.opengis.referencing.operation.TransformException;
 
+@SuppressFBWarnings("FL_FLOATS_AS_LOOP_COUNTERS") // we actually need to loop on floats here
 public class OrthographicProjectionHandlerFactory implements ProjectionHandlerFactory {
 
     private static final double EPS = 1e-3;
@@ -152,7 +154,8 @@ public class OrthographicProjectionHandlerFactory implements ProjectionHandlerFa
         final double SMALL_STEP = 0.1;
         double step = NORMAL_STEP;
         boolean closingToDateline = false;
-        for (double angle = 0; angle < 360; ) {
+        double angle = 0;
+        while (angle < 360) {
             src[0] = radius * Math.cos(Math.toRadians(angle));
             src[1] = radius * Math.sin(Math.toRadians(angle));
             inverse.transform(src, 0, dst, 0, 1);

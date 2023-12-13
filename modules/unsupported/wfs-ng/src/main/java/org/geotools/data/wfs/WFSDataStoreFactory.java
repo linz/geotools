@@ -22,9 +22,9 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
-import org.geotools.data.DataStore;
-import org.geotools.data.DataStoreFactorySpi;
-import org.geotools.data.DataStoreFinder;
+import org.geotools.api.data.DataStore;
+import org.geotools.api.data.DataStoreFactorySpi;
+import org.geotools.api.data.DataStoreFinder;
 import org.geotools.data.wfs.impl.WFSDataAccessFactory;
 import org.geotools.data.wfs.internal.Versions;
 import org.geotools.data.wfs.internal.WFSClient;
@@ -75,7 +75,7 @@ public class WFSDataStoreFactory extends WFSDataAccessFactory implements DataSto
      * GetCapabilities request to be generated from a base URL build the URL with the {@link
      * #createGetCapabilitiesRequest} first.
      *
-     * @see org.geotools.data.DataStoreFactorySpi#createDataStore(java.util.Map)
+     * @see DataStoreFactorySpi#createDataStore(java.util.Map)
      */
     @Override
     public WFSDataStore createDataStore(final Map<String, ?> params) throws IOException {
@@ -131,9 +131,8 @@ public class WFSDataStoreFactory extends WFSDataAccessFactory implements DataSto
      * @return the HttpClient instance
      */
     public HTTPClient getHttpClient(final Map<String, ?> params) throws IOException {
-        final URL capabilitiesURL = URL.lookUp(params);
         final WFSConfig config = WFSConfig.fromParams(params);
-        if (config.isUseHttpConnectionPooling() && isHttp(capabilitiesURL)) {
+        if (config.isUseHttpConnectionPooling()) {
             HTTPClient client = HTTPClientFinder.createClient(HTTPConnectionPooling.class);
 
             client.setReadTimeout(config.getTimeoutMillis() / 1000);
@@ -144,10 +143,6 @@ public class WFSDataStoreFactory extends WFSDataAccessFactory implements DataSto
         } else {
             return HTTPClientFinder.createClient();
         }
-    }
-
-    private static boolean isHttp(java.net.URL capabilitiesURL) {
-        return capabilitiesURL.getProtocol().toLowerCase().matches("http(s)?");
     }
 
     @Override

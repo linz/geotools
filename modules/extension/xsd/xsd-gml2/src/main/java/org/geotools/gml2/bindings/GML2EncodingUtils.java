@@ -25,6 +25,12 @@ import java.util.logging.Logger;
 import javax.xml.namespace.QName;
 import org.eclipse.xsd.XSDElementDeclaration;
 import org.eclipse.xsd.XSDTypeDefinition;
+import org.geotools.api.feature.Feature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.feature.type.FeatureType;
+import org.geotools.api.metadata.Identifier;
+import org.geotools.api.referencing.ReferenceIdentifier;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.geometry.jts.coordinatesequence.CoordinateSequences;
@@ -34,15 +40,11 @@ import org.geotools.gml2.SrsSyntax;
 import org.geotools.metadata.iso.citation.Citations;
 import org.geotools.referencing.CRS;
 import org.geotools.referencing.CRS.AxisOrder;
+import org.geotools.util.factory.Hints;
 import org.geotools.util.logging.Logging;
 import org.geotools.xsd.Configuration;
 import org.geotools.xsd.SchemaIndex;
 import org.locationtech.jts.geom.Geometry;
-import org.opengis.feature.Feature;
-import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.feature.type.FeatureType;
-import org.opengis.metadata.Identifier;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
@@ -59,12 +61,16 @@ public class GML2EncodingUtils {
 
     static GMLEncodingUtils e = new GMLEncodingUtils(GML.getInstance());
 
+    /**
+     * Use {@link #toURI(CoordinateReferenceSystem, SrsSyntax, boolean)} instead, or {@link
+     * SrsSyntax} directly
+     */
     public static String epsgCode(CoordinateReferenceSystem crs) {
         if (crs == null) {
             return null;
         }
 
-        for (org.opengis.referencing.ReferenceIdentifier referenceIdentifier :
+        for (org.geotools.api.referencing.ReferenceIdentifier referenceIdentifier :
                 crs.getIdentifiers()) {
             Identifier id = (Identifier) referenceIdentifier;
 
@@ -89,16 +95,47 @@ public class GML2EncodingUtils {
      * <p>The axis order of the crs determines which form of uri is used.
      */
     public static String toURI(CoordinateReferenceSystem crs, boolean forceOldStyle) {
-        return toURI(crs, forceOldStyle ? SrsSyntax.OGC_HTTP_URL : SrsSyntax.OGC_URN_EXPERIMENTAL);
+        return toURI(
+                crs, forceOldStyle ? SrsSyntax.OGC_HTTP_URL : SrsSyntax.OGC_URN_EXPERIMENTAL, true);
     }
 
     /**
      * Encodes the crs object as a uri using the specified syntax.
      *
-     * <p>The axis order of the crs is taken into account. In cases where
+     * @param crs The CRS to be evaluated
+     * @param srsSyntax The syntax to use
+     * @param switchCode If true, the authority and code will be switched to HTTP URI automatically
+     *     if the CRS axis order is east/north or inapplicable
      */
-    public static String toURI(CoordinateReferenceSystem crs, SrsSyntax srsSyntax) {
-        String code = epsgCode(crs);
+    public static String toURI(
+            CoordinateReferenceSystem crs, SrsSyntax srsSyntax, boolean switchCode) {
+        if (crs == null) {
+            return null;
+        }
+
+        String code = null;
+        String authority = "EPSG";
+        for (ReferenceIdentifier referenceIdentifier : crs.getIdentifiers()) {
+            Identifier id = (Identifier) referenceIdentifier;
+
+            if ((id.getAuthority() != null)
+                    && id.getAuthority().getTitle().equals(Citations.EPSG.getTitle())) {
+                code = id.getCode();
+                break;
+            }
+        }
+
+        // not an EPSG code? figure out separate authority and code then
+        if (code == null) {
+            for (ReferenceIdentifier referenceIdentifier : crs.getIdentifiers()) {
+                if (referenceIdentifier.getAuthority() != null) {
+                    authority = referenceIdentifier.getCodeSpace();
+                    code = referenceIdentifier.getCode();
+                    break;
+                }
+            }
+        }
+
         AxisOrder axisOrder = CRS.getAxisOrder(crs, true);
 
         if (code != null) {
@@ -108,11 +145,13 @@ public class GML2EncodingUtils {
             // specified
             // syntax verbatim, maintaining this check for to maintain the excision behavior of this
             // method
-            if (axisOrder == AxisOrder.EAST_NORTH || axisOrder == AxisOrder.INAPPLICABLE) {
+            if (switchCode
+                    && !Boolean.TRUE.equals(Hints.getSystemDefault(Hints.FORCE_SRS_STYLE))
+                    && (axisOrder == AxisOrder.EAST_NORTH || axisOrder == AxisOrder.INAPPLICABLE)) {
                 srsSyntax = SrsSyntax.OGC_HTTP_URL;
             }
 
-            return srsSyntax.getPrefix() + code;
+            return srsSyntax.getSRS(authority, code);
         }
 
         // if crs has no EPSG code but its identifier is a URI, then use its identifier

@@ -27,8 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.geotools.data.ResourceInfo;
-import org.geotools.data.ServiceInfo;
+import org.geotools.api.data.ResourceInfo;
+import org.geotools.api.data.ServiceInfo;
 import org.geotools.http.HTTPClient;
 import org.geotools.http.HTTPClientFinder;
 import org.geotools.http.HTTPResponse;
@@ -360,7 +360,7 @@ public abstract class AbstractOpenWebService<C extends Capabilities, R extends O
         if (exception != null) {
             IOException e =
                     new IOException(
-                            "Could not establish version neogitation: " + exception.getMessage(),
+                            "Could not establish version negotiation: " + exception.getMessage(),
                             exception);
             throw e;
         } else {
@@ -448,7 +448,11 @@ public abstract class AbstractOpenWebService<C extends Capabilities, R extends O
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
                 request.performPostOutput(out);
                 try (InputStream in = getStream(out)) {
-                    httpResponse = httpClient.post(finalURL, in, postContentType);
+                    if (headers == null) {
+                        httpResponse = httpClient.post(finalURL, in, postContentType);
+                    } else {
+                        httpResponse = httpClient.post(finalURL, in, postContentType, headers);
+                    }
                 }
             } else {
                 if (headers == null) {

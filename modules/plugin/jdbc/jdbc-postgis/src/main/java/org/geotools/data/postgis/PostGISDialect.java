@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.lang.reflect.Array;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Savepoint;
@@ -36,6 +37,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.feature.type.AttributeDescriptor;
+import org.geotools.api.feature.type.GeometryDescriptor;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.filter.FilterFactory;
+import org.geotools.api.filter.expression.Expression;
+import org.geotools.api.filter.expression.Function;
+import org.geotools.api.filter.expression.Literal;
+import org.geotools.api.referencing.FactoryException;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
 import org.geotools.data.jdbc.FilterToSQL;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.filter.FilterAttributeExtractor;
@@ -72,16 +83,6 @@ import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.io.WKTReader;
 import org.locationtech.jts.io.WKTWriter;
-import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.feature.type.AttributeDescriptor;
-import org.opengis.feature.type.GeometryDescriptor;
-import org.opengis.filter.Filter;
-import org.opengis.filter.FilterFactory2;
-import org.opengis.filter.expression.Expression;
-import org.opengis.filter.expression.Function;
-import org.opengis.filter.expression.Literal;
-import org.opengis.referencing.FactoryException;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.postgresql.jdbc.PgConnection;
 
 public class PostGISDialect extends BasicSQLDialect {
@@ -1145,24 +1146,7 @@ public class PostGISDialect extends BasicSQLDialect {
                 if (att instanceof GeometryDescriptor) {
                     GeometryDescriptor gd = (GeometryDescriptor) att;
 
-                    // lookup or reverse engineer the srid
-                    int srid = -1;
-                    if (gd.getUserData().get(JDBCDataStore.JDBC_NATIVE_SRID) != null) {
-                        srid = (Integer) gd.getUserData().get(JDBCDataStore.JDBC_NATIVE_SRID);
-                    } else if (gd.getCoordinateReferenceSystem() != null) {
-                        try {
-                            Integer result =
-                                    CRS.lookupEpsgCode(gd.getCoordinateReferenceSystem(), true);
-                            if (result != null) srid = result;
-                        } catch (Exception e) {
-                            LOGGER.log(
-                                    Level.FINE,
-                                    "Error looking up the "
-                                            + "epsg code for metadata "
-                                            + "insertion, assuming -1",
-                                    e);
-                        }
-                    }
+                    int srid = getSRIDFromDescriptor(cx, gd);
 
                     // setup the dimension according to the geometry hints
                     int dimensions = 2;
@@ -1332,6 +1316,59 @@ public class PostGISDialect extends BasicSQLDialect {
         }
     }
 
+    private static int getSRIDFromDescriptor(Connection cx, GeometryDescriptor gd) {
+        // lookup or reverse engineer the srid
+        CoordinateReferenceSystem crs = gd.getCoordinateReferenceSystem();
+        if (gd.getUserData().get(JDBCDataStore.JDBC_NATIVE_SRID) != null)
+            return (Integer) gd.getUserData().get(JDBCDataStore.JDBC_NATIVE_SRID);
+
+        if (crs != null) {
+            try {
+                Integer result = CRS.lookupEpsgCode(crs, true);
+                if (result != null) return result;
+
+                // if we got here we have a CRS but not an EPSG one, see if it's already there
+                String wkt = crs.toWKT();
+                String sqlWkt = "SELECT srid FROM spatial_ref_sys WHERE srtext = '" + wkt + "'";
+                try (Statement st = cx.createStatement();
+                        ResultSet rs = st.executeQuery(sqlWkt)) {
+                    if (rs.next()) {
+                        return rs.getInt(1);
+                    }
+                }
+
+                // then we should try to create one
+                String sqlMax = "select max(srid) from spatial_ref_sys";
+                String insert =
+                        "INSERT INTO spatial_ref_sys (srid, auth_name, auth_srid, srtext) VALUES (?, ?, ?, ?)";
+                String identifier = CRS.lookupIdentifier(crs, true);
+                int splitIdx = identifier.indexOf(':');
+                try (Statement st = cx.createStatement();
+                        ResultSet rs = st.executeQuery(sqlMax);
+                        PreparedStatement ps = cx.prepareStatement(insert)) {
+                    if (rs.next()) {
+                        int srid = rs.getInt(1) + 1;
+                        ps.setInt(1, srid);
+                        if (splitIdx == -1) {
+                            ps.setString(2, null);
+                            ps.setNull(3, Types.INTEGER);
+                        } else {
+                            ps.setString(2, identifier.substring(0, splitIdx));
+                            ps.setInt(3, Integer.parseInt(identifier.substring(splitIdx + 1)));
+                        }
+                        ps.setString(4, wkt);
+                        ps.execute();
+                        return srid;
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.log(Level.FINE, "Error looking up the epsg code for metadata insertion", e);
+            }
+        }
+
+        return -1;
+    }
+
     @Override
     public void postDropTable(String schemaName, SimpleFeatureType featureType, Connection cx)
             throws SQLException {
@@ -1359,7 +1396,7 @@ public class PostGISDialect extends BasicSQLDialect {
     @Override
     public void encodeGeometryValue(Geometry value, int dimension, int srid, StringBuffer sql)
             throws IOException {
-        if (value == null || value.isEmpty()) {
+        if (value == null) {
             sql.append("NULL");
         } else {
             if (value instanceof LinearRing && !(value instanceof CurvedRing)) {
@@ -1631,7 +1668,7 @@ public class PostGISDialect extends BasicSQLDialect {
             Function duplicated = (Function) expression.accept(duplicating, null);
             // if constant can encode
             Object result = param.evaluate(null);
-            FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2();
+            FilterFactory ff = CommonFactoryFinder.getFilterFactory();
             // setting constant expression evaluated to literal
             duplicated.getParameters().set(paramIdx, ff.literal(result));
             return duplicated;

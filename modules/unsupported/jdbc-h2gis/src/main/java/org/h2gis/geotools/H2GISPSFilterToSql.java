@@ -18,14 +18,14 @@
 package org.h2gis.geotools;
 
 import java.io.IOException;
+import org.geotools.api.filter.expression.Expression;
+import org.geotools.api.filter.expression.Function;
+import org.geotools.api.filter.expression.Literal;
+import org.geotools.api.filter.expression.PropertyName;
+import org.geotools.api.filter.spatial.BinarySpatialOperator;
+import org.geotools.api.filter.spatial.DistanceBufferOperator;
 import org.geotools.filter.FilterCapabilities;
 import org.geotools.jdbc.PreparedFilterToSQL;
-import org.opengis.filter.expression.Expression;
-import org.opengis.filter.expression.Function;
-import org.opengis.filter.expression.Literal;
-import org.opengis.filter.expression.PropertyName;
-import org.opengis.filter.spatial.BinarySpatialOperator;
-import org.opengis.filter.spatial.DistanceBufferOperator;
 
 /**
  * jdbc-h2gis is an extension to connect H2GIS a spatial library that brings spatial support to the
@@ -76,11 +76,6 @@ public class H2GISPSFilterToSql extends PreparedFilterToSQL {
     @Override
     protected String getFunctionName(Function function) {
         return H2GISFilterToSQLHelper.getFunctionName(function);
-    }
-
-    @Override
-    public double getDistanceInMeters(DistanceBufferOperator operator) {
-        return super.getDistanceInMeters(operator);
     }
 
     @Override

@@ -16,12 +16,12 @@
  */
 package org.geotools.feature.visitor;
 
+import org.geotools.api.filter.FilterFactory;
+import org.geotools.api.filter.expression.Expression;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.filter.FunctionExpression;
 import org.geotools.util.Converters;
 import org.locationtech.jts.geom.Geometry;
-import org.opengis.filter.FilterFactory;
-import org.opengis.filter.expression.Expression;
 
 /**
  * Aggregate functions defined for use with the GeoTools library.
@@ -43,6 +43,9 @@ public enum Aggregate {
 
         @Override
         public CalcResult wrap(Expression aggregateAttribute, Object value) {
+            if (value == null) {
+                return AbstractCalcResult.NULL_RESULT;
+            }
             return new AverageVisitor.AverageResult(value);
         }
 
@@ -156,6 +159,9 @@ public enum Aggregate {
 
         @Override
         public CalcResult wrap(Expression aggregateAttribute, Object value) {
+            if (value == null) {
+                return AbstractCalcResult.NULL_RESULT;
+            }
             return new SumVisitor.SumResult(value);
         }
 

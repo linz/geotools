@@ -16,7 +16,6 @@
  */
 package org.geotools.data.jdbc;
 
-import static java.util.Map.entry;
 import static org.geotools.filter.capability.FunctionNameImpl.parameter;
 
 import java.io.IOException;
@@ -34,9 +33,75 @@ import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.measure.Unit;
-import javax.measure.UnitConverter;
-import javax.measure.quantity.Length;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.feature.type.AttributeDescriptor;
+import org.geotools.api.feature.type.GeometryDescriptor;
+import org.geotools.api.filter.And;
+import org.geotools.api.filter.BinaryComparisonOperator;
+import org.geotools.api.filter.BinaryLogicOperator;
+import org.geotools.api.filter.ExcludeFilter;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.filter.FilterFactory;
+import org.geotools.api.filter.FilterVisitor;
+import org.geotools.api.filter.Id;
+import org.geotools.api.filter.IncludeFilter;
+import org.geotools.api.filter.NativeFilter;
+import org.geotools.api.filter.Not;
+import org.geotools.api.filter.Or;
+import org.geotools.api.filter.PropertyIsBetween;
+import org.geotools.api.filter.PropertyIsEqualTo;
+import org.geotools.api.filter.PropertyIsGreaterThan;
+import org.geotools.api.filter.PropertyIsGreaterThanOrEqualTo;
+import org.geotools.api.filter.PropertyIsLessThan;
+import org.geotools.api.filter.PropertyIsLessThanOrEqualTo;
+import org.geotools.api.filter.PropertyIsLike;
+import org.geotools.api.filter.PropertyIsNil;
+import org.geotools.api.filter.PropertyIsNotEqualTo;
+import org.geotools.api.filter.PropertyIsNull;
+import org.geotools.api.filter.expression.Add;
+import org.geotools.api.filter.expression.BinaryExpression;
+import org.geotools.api.filter.expression.Divide;
+import org.geotools.api.filter.expression.Expression;
+import org.geotools.api.filter.expression.ExpressionVisitor;
+import org.geotools.api.filter.expression.Function;
+import org.geotools.api.filter.expression.Literal;
+import org.geotools.api.filter.expression.Multiply;
+import org.geotools.api.filter.expression.NilExpression;
+import org.geotools.api.filter.expression.PropertyName;
+import org.geotools.api.filter.expression.Subtract;
+import org.geotools.api.filter.identity.Identifier;
+import org.geotools.api.filter.spatial.BBOX;
+import org.geotools.api.filter.spatial.Beyond;
+import org.geotools.api.filter.spatial.BinarySpatialOperator;
+import org.geotools.api.filter.spatial.Contains;
+import org.geotools.api.filter.spatial.Crosses;
+import org.geotools.api.filter.spatial.DWithin;
+import org.geotools.api.filter.spatial.Disjoint;
+import org.geotools.api.filter.spatial.DistanceBufferOperator;
+import org.geotools.api.filter.spatial.Equals;
+import org.geotools.api.filter.spatial.Intersects;
+import org.geotools.api.filter.spatial.Overlaps;
+import org.geotools.api.filter.spatial.Touches;
+import org.geotools.api.filter.spatial.Within;
+import org.geotools.api.filter.temporal.After;
+import org.geotools.api.filter.temporal.AnyInteracts;
+import org.geotools.api.filter.temporal.Before;
+import org.geotools.api.filter.temporal.Begins;
+import org.geotools.api.filter.temporal.BegunBy;
+import org.geotools.api.filter.temporal.BinaryTemporalOperator;
+import org.geotools.api.filter.temporal.During;
+import org.geotools.api.filter.temporal.EndedBy;
+import org.geotools.api.filter.temporal.Ends;
+import org.geotools.api.filter.temporal.Meets;
+import org.geotools.api.filter.temporal.MetBy;
+import org.geotools.api.filter.temporal.OverlappedBy;
+import org.geotools.api.filter.temporal.TContains;
+import org.geotools.api.filter.temporal.TEquals;
+import org.geotools.api.filter.temporal.TOverlaps;
+import org.geotools.api.parameter.Parameter;
+import org.geotools.api.temporal.Instant;
+import org.geotools.api.temporal.Period;
+import org.geotools.data.util.DistanceBufferUtil;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.filter.FilterCapabilities;
 import org.geotools.filter.FunctionImpl;
@@ -51,84 +116,11 @@ import org.geotools.jdbc.JoinId;
 import org.geotools.jdbc.JoinPropertyName;
 import org.geotools.jdbc.PrimaryKey;
 import org.geotools.jdbc.PrimaryKeyColumn;
-import org.geotools.referencing.CRS;
 import org.geotools.util.ConverterFactory;
 import org.geotools.util.Converters;
 import org.geotools.util.factory.Hints;
-import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
-import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.feature.type.AttributeDescriptor;
-import org.opengis.feature.type.GeometryDescriptor;
-import org.opengis.filter.And;
-import org.opengis.filter.BinaryComparisonOperator;
-import org.opengis.filter.BinaryLogicOperator;
-import org.opengis.filter.ExcludeFilter;
-import org.opengis.filter.Filter;
-import org.opengis.filter.FilterFactory;
-import org.opengis.filter.FilterVisitor;
-import org.opengis.filter.Id;
-import org.opengis.filter.IncludeFilter;
-import org.opengis.filter.NativeFilter;
-import org.opengis.filter.Not;
-import org.opengis.filter.Or;
-import org.opengis.filter.PropertyIsBetween;
-import org.opengis.filter.PropertyIsEqualTo;
-import org.opengis.filter.PropertyIsGreaterThan;
-import org.opengis.filter.PropertyIsGreaterThanOrEqualTo;
-import org.opengis.filter.PropertyIsLessThan;
-import org.opengis.filter.PropertyIsLessThanOrEqualTo;
-import org.opengis.filter.PropertyIsLike;
-import org.opengis.filter.PropertyIsNil;
-import org.opengis.filter.PropertyIsNotEqualTo;
-import org.opengis.filter.PropertyIsNull;
-import org.opengis.filter.expression.Add;
-import org.opengis.filter.expression.BinaryExpression;
-import org.opengis.filter.expression.Divide;
-import org.opengis.filter.expression.Expression;
-import org.opengis.filter.expression.ExpressionVisitor;
-import org.opengis.filter.expression.Function;
-import org.opengis.filter.expression.Literal;
-import org.opengis.filter.expression.Multiply;
-import org.opengis.filter.expression.NilExpression;
-import org.opengis.filter.expression.PropertyName;
-import org.opengis.filter.expression.Subtract;
-import org.opengis.filter.identity.Identifier;
-import org.opengis.filter.spatial.BBOX;
-import org.opengis.filter.spatial.Beyond;
-import org.opengis.filter.spatial.BinarySpatialOperator;
-import org.opengis.filter.spatial.Contains;
-import org.opengis.filter.spatial.Crosses;
-import org.opengis.filter.spatial.DWithin;
-import org.opengis.filter.spatial.Disjoint;
-import org.opengis.filter.spatial.DistanceBufferOperator;
-import org.opengis.filter.spatial.Equals;
-import org.opengis.filter.spatial.Intersects;
-import org.opengis.filter.spatial.Overlaps;
-import org.opengis.filter.spatial.Touches;
-import org.opengis.filter.spatial.Within;
-import org.opengis.filter.temporal.After;
-import org.opengis.filter.temporal.AnyInteracts;
-import org.opengis.filter.temporal.Before;
-import org.opengis.filter.temporal.Begins;
-import org.opengis.filter.temporal.BegunBy;
-import org.opengis.filter.temporal.BinaryTemporalOperator;
-import org.opengis.filter.temporal.During;
-import org.opengis.filter.temporal.EndedBy;
-import org.opengis.filter.temporal.Ends;
-import org.opengis.filter.temporal.Meets;
-import org.opengis.filter.temporal.MetBy;
-import org.opengis.filter.temporal.OverlappedBy;
-import org.opengis.filter.temporal.TContains;
-import org.opengis.filter.temporal.TEquals;
-import org.opengis.filter.temporal.TOverlaps;
-import org.opengis.parameter.Parameter;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
-import org.opengis.referencing.crs.GeographicCRS;
-import org.opengis.temporal.Instant;
-import org.opengis.temporal.Period;
-import si.uom.SI;
 
 /**
  * Encodes a filter into a SQL WHERE statement. It should hopefully be generic enough that any SQL
@@ -139,25 +131,25 @@ import si.uom.SI;
  * GeometryFilter visit method. Then add the filter types supported to the capabilities by
  * overriding the {{@link #createFilterCapabilities()} method.
  *
- * <p>This version was ported from the original to support org.opengis.filter type Filters.
+ * <p>The output Writer can be provided either through the constructor, or with a {@link
+ * #setWriter(Writer)}. It must be provided before a call to encode.
+ *
+ * <p><b>Note</b> that the class isn't thread-safe and a new object should be created for each call
+ * to any of the encode functions.
  *
  * @author originally by Chris Holmes, TOPP
  * @author ported by Saul Farber, MassGIS
- * @task REVISIT: need to figure out exceptions, we're currently eating io errors, which is bad.
- *     Probably need a generic visitor exception.
  */
 /*
  * TODO: Use the new FilterCapabilities.  This may fall out of using the new
  * PrePostFilterSplitter code.
  *
- * TODO: Use the new Geometry classes from org.opengis.  Not sure
- * when this will be required, but it's on the horizon here.
  *
  * Non Javadoc comments:
  *
  * Note that the old method allowed us to write WAY fewer methods, as we didn't
- * need to cover all the cases with exlpicit methods (as the new
- * org.opengis.filter.FilterVisitor and ExpressionVisitor methods require
+ * need to cover all the cases with explicit methods (as the new
+ * org.geotools.api.filter.FilterVisitor and ExpressionVisitor methods require
  * us to do).
  *
  * The code is split into methods to support the FilterVisitor interface first
@@ -165,23 +157,6 @@ import si.uom.SI;
  *
  */
 public class FilterToSQL implements FilterVisitor, ExpressionVisitor {
-
-    /** Conversion factor from common units to meter */
-    private static final Map<String, Double> UNITS_MAP =
-            Map.ofEntries(
-                    entry("kilometers", 1000.0),
-                    entry("kilometer", 1000.0),
-                    entry("km", 1000.0),
-                    entry("m", 1.0),
-                    entry("meter", 1.0),
-                    entry("mm", 0.001),
-                    entry("millimeter", 0.001),
-                    entry("mi", 1609.344),
-                    entry("miles", 1609.344),
-                    entry("nm", 1852d),
-                    entry("feet", 0.3048),
-                    entry("ft", 0.3048),
-                    entry("in", 0.0254));
 
     /** error message for exceptions */
     protected static final String IO_ERROR = "io problem writing filter";
@@ -445,7 +420,7 @@ public class FilterToSQL implements FilterVisitor, ExpressionVisitor {
         this.capabilities = capabilities;
     }
 
-    // BEGIN IMPLEMENTING org.opengis.filter.FilterVisitor METHODS
+    // BEGIN IMPLEMENTING org.geotools.api.filter.FilterVisitor METHODS
 
     /**
      * @see {@link FilterVisitor#visit(ExcludeFilter, Object)}
@@ -1521,9 +1496,9 @@ public class FilterToSQL implements FilterVisitor, ExpressionVisitor {
         return extraData;
     }
 
-    // END IMPLEMENTING org.opengis.filter.FilterVisitor METHODS
+    // END IMPLEMENTING org.geotools.api.filter.FilterVisitor METHODS
 
-    // START IMPLEMENTING org.opengis.filter.ExpressionVisitor METHODS
+    // START IMPLEMENTING org.geotools.api.filter.ExpressionVisitor METHODS
 
     /**
      * Writes the SQL for the attribute Expression.
@@ -2133,74 +2108,12 @@ public class FilterToSQL implements FilterVisitor, ExpressionVisitor {
     }
 
     /**
-     * Converts the distance of the operator in meters, or returns the current value if there is no
-     * units distance
-     */
-    protected double getDistanceInMeters(DistanceBufferOperator operator) {
-        double distance = operator.getDistance();
-        String units = operator.getDistanceUnits();
-        // no units or no SRID, no party, return value as-is
-        if (units == null || UNITS_MAP.get(units.toLowerCase()) == null) {
-            return distance;
-        }
-
-        double factor = UNITS_MAP.get(units.toLowerCase());
-        return distance * factor;
-    }
-
-    /**
      * Rough evaluation of distance in the units of the current SRID, assuming that the SRID maps to
      * a known EPSG code. Will use a rather imprecise transformation for distances over degrees, but
      * better than nothing.
      */
     protected double getDistanceInNativeUnits(DistanceBufferOperator operator) {
-        if (currentSRID == null) {
-            return operator.getDistance();
-        }
-        try {
-            CoordinateReferenceSystem crs = CRS.getHorizontalCRS(CRS.decode("EPSG:" + currentSRID));
-            double distanceMeters = getDistanceInMeters(operator);
-            if (crs instanceof GeographicCRS) {
-                double sizeDegree = 110574.2727;
-                Coordinate center = getReferenceGeometryCentroid(operator);
-                if (center != null) {
-                    double cosLat = Math.cos(Math.PI * center.y / 180.0);
-                    double latAdjustment = Math.sqrt(1 + cosLat * cosLat) / Math.sqrt(2.0);
-                    sizeDegree *= latAdjustment;
-                }
-
-                return distanceMeters / sizeDegree;
-            } else {
-                @SuppressWarnings("unchecked")
-                Unit<Length> unit = (Unit<Length>) crs.getCoordinateSystem().getAxis(0).getUnit();
-                if (unit == null) {
-                    return distanceMeters;
-                } else {
-                    UnitConverter converter = SI.METRE.getConverterTo(unit);
-                    return converter.convert(distanceMeters);
-                }
-            }
-        } catch (Exception e) {
-            LOGGER.log(
-                    Level.FINE,
-                    "Failed to turn the distance of spatial "
-                            + "filter into native units, using it as a pure number instead",
-                    e);
-            // tried, fall back on pure value
-            return operator.getDistance();
-        }
-    }
-
-    /** Returns the center of the reference geometry of the distance buffer operator, in case */
-    protected Coordinate getReferenceGeometryCentroid(DistanceBufferOperator operator) {
-        Geometry geom = operator.getExpression1().evaluate(null, Geometry.class);
-        if (geom == null) {
-            geom = operator.getExpression2().evaluate(null, Geometry.class);
-        }
-        if (geom == null) {
-            return null;
-        }
-        return geom.getCentroid().getCoordinate();
+        return DistanceBufferUtil.getDistanceInNativeUnits(operator, currentSRID);
     }
 
     @Override

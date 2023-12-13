@@ -19,6 +19,7 @@ package org.geotools.jdbc;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
@@ -28,7 +29,14 @@ import java.text.SimpleDateFormat;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
-import org.geotools.data.Query;
+import org.geotools.api.data.Query;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.filter.FilterFactory;
+import org.geotools.api.filter.expression.Expression;
+import org.geotools.api.filter.expression.Function;
+import org.geotools.api.filter.expression.Multiply;
+import org.geotools.api.filter.expression.PropertyName;
 import org.geotools.data.store.ContentFeatureSource;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.feature.visitor.Aggregate;
@@ -41,15 +49,10 @@ import org.geotools.filter.function.math.FilterFunction_floor;
 import org.junit.Test;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.io.WKTReader;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.filter.Filter;
-import org.opengis.filter.FilterFactory;
-import org.opengis.filter.expression.Expression;
-import org.opengis.filter.expression.Function;
-import org.opengis.filter.expression.Multiply;
-import org.opengis.filter.expression.PropertyName;
 
 public abstract class JDBCGroupByVisitorOnlineTest extends JDBCTestSupport {
+
+    private static final double EPS = 1e-6;
 
     @Test
     public void testSimpleGroupByWithMax() throws Exception {
@@ -342,6 +345,29 @@ public abstract class JDBCGroupByVisitorOnlineTest extends JDBCTestSupport {
         checkValueContains(value, "SCHOOL", "180.0");
     }
 
+    protected void testGroupByWithAggregateAllValuesNull(
+            Aggregate aggregate, boolean expectOptimized) throws Exception {
+        PropertyName aggregateAttribute =
+                CommonFactoryFinder.getFilterFactory().property(aname("fuel_consumption"));
+        Expression groupBy = dataStore.getFilterFactory().property(aname("building_type"));
+        List<Object[]> value =
+                genericGroupByTestTest(
+                        Query.ALL, aggregate, aggregateAttribute, expectOptimized, groupBy);
+        // All values in the fuel_consumption column are null, should return null without an NPE
+        for (Object[] row : value) {
+            assertNull(row[1]);
+        }
+    }
+
+    @Test
+    public void testGroupByWithAggregateAllValuesNull() throws Exception {
+        testGroupByWithAggregateAllValuesNull(Aggregate.MAX, true);
+        testGroupByWithAggregateAllValuesNull(Aggregate.MIN, true);
+        testGroupByWithAggregateAllValuesNull(Aggregate.SUM, true);
+        testGroupByWithAggregateAllValuesNull(Aggregate.AVERAGE, true);
+        testGroupByWithAggregateAllValuesNull(Aggregate.MEDIAN, false);
+    }
+
     @Test
     public void testMultipleGroupByWithSum() throws Exception {
         List<Object[]> value =
@@ -484,7 +510,8 @@ public abstract class JDBCGroupByVisitorOnlineTest extends JDBCTestSupport {
         return value;
     }
 
-    protected void checkValueContains(List<Object[]> value, String... expectedResult) {
+    protected void checkValueContains(
+            List<Object[]> value, double tolerance, String... expectedResult) {
         assertTrue(
                 value.stream()
                         .anyMatch(
@@ -496,7 +523,7 @@ public abstract class JDBCGroupByVisitorOnlineTest extends JDBCTestSupport {
                                         if (result[i] instanceof Number) {
                                             double r = ((Number) result[i]).doubleValue();
                                             double e = Double.parseDouble(expectedResult[i]);
-                                            return r == e;
+                                            return Math.abs(r - e) <= tolerance;
                                         } else if (!result[i]
                                                 .toString()
                                                 .equals(expectedResult[i])) {
@@ -505,6 +532,10 @@ public abstract class JDBCGroupByVisitorOnlineTest extends JDBCTestSupport {
                                     }
                                     return true;
                                 }));
+    }
+
+    protected void checkValueContains(List<Object[]> value, String... expectedResult) {
+        checkValueContains(value, 0.0, expectedResult);
     }
 
     @Test
@@ -548,11 +579,11 @@ public abstract class JDBCGroupByVisitorOnlineTest extends JDBCTestSupport {
         assertNotNull(value);
 
         assertEquals(5, value.size());
-        checkValueContains(value, Integer.toString(0 * multiplyingFactor), "3"); // 2016-06-03
-        checkValueContains(value, Integer.toString(2 * multiplyingFactor), "1"); // 2016-06-05
-        checkValueContains(value, Integer.toString(3 * multiplyingFactor), "2"); // 2016-06-06
-        checkValueContains(value, Integer.toString(4 * multiplyingFactor), "3"); // 2016-06-07
-        checkValueContains(value, Integer.toString(12 * multiplyingFactor), "3"); // 2016-06-15
+        checkValueContains(value, EPS, Integer.toString(0 * multiplyingFactor), "3"); // 2016-06-03
+        checkValueContains(value, EPS, Integer.toString(2 * multiplyingFactor), "1"); // 2016-06-05
+        checkValueContains(value, EPS, Integer.toString(3 * multiplyingFactor), "2"); // 2016-06-06
+        checkValueContains(value, EPS, Integer.toString(4 * multiplyingFactor), "3"); // 2016-06-07
+        checkValueContains(value, EPS, Integer.toString(12 * multiplyingFactor), "3"); // 2016-06-15
     }
 
     // Geometry should be Comparable<Geometry> but it's just Comparable, this causes issues

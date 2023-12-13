@@ -2,12 +2,12 @@
 <!-- ======================================================================= Maven 
   Project Configuration File The Geotools Project http://www.geotools.org/ Version: 
   $Id$ ======================================================================= -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>org.geotools</groupId>
     <artifactId>unsupported</artifactId>
-    <version>30-SNAPSHOT</version>
+    <version>31-SNAPSHOT</version>
   </parent>
   <groupId>org.geotools</groupId>
   <artifactId>gt-elasticsearch</artifactId>
@@ -49,12 +49,12 @@
     <dependency>
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-core</artifactId>
-      <version>5.1.13.RELEASE</version>
+      <version>5.7.10</version>
       <scope>provided</scope>
       <exclusions>
         <exclusion>
-          <artifactId>aopalliance</artifactId>
           <groupId>aopalliance</groupId>
+          <artifactId>aopalliance</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
@@ -179,10 +179,10 @@
         <executions>
           <execution>
             <id>add-source</id>
-            <phase>generate-sources</phase>
             <goals>
               <goal>add-source</goal>
             </goals>
+            <phase>generate-sources</phase>
             <configuration>
               <sources>
                 <source>${project.build.directory}/generated-sources</source>
@@ -210,14 +210,6 @@
         <plugins>
           <plugin>
             <artifactId>maven-failsafe-plugin</artifactId>
-            <executions>
-              <execution>
-                <goals>
-                  <goal>integration-test</goal>
-                  <goal>verify</goal>
-                </goals>
-              </execution>
-            </executions>
             <configuration>
               <argLine>-Djava.util.logging.config.file=${project.build.directory}/test-classes/test-classes/logging.properties</argLine>
               <skipTests>${skipOnlineTests}</skipTests>
@@ -226,6 +218,14 @@
                 <elastic.test.version>${elastic.test.version}</elastic.test.version>
               </systemPropertyVariables>
             </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>integration-test</goal>
+                  <goal>verify</goal>
+                </goals>
+              </execution>
+            </executions>
           </plugin>
         </plugins>
       </build>

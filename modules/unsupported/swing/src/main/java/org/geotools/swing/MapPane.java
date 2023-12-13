@@ -17,13 +17,13 @@
 package org.geotools.swing;
 
 import java.awt.geom.AffineTransform;
+import org.geotools.api.geometry.Bounds;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.map.MapContent;
 import org.geotools.swing.event.MapMouseEventDispatcher;
 import org.geotools.swing.event.MapMouseListener;
 import org.geotools.swing.event.MapPaneListener;
 import org.geotools.swing.tool.CursorTool;
-import org.opengis.geometry.Envelope;
 
 /**
  * Defines the core map pane methods.
@@ -78,9 +78,9 @@ public interface MapPane {
      * Sets the area to display in world units.
      *
      * @param envelope the new display area
-     * @throws IllegalArgumentException if {@code envelope} is {@code null]
+     * @throws IllegalArgumentException if {@code envelope} is {@code null}
      */
-    void setDisplayArea(Envelope envelope);
+    void setDisplayArea(Bounds envelope);
 
     /** Reset the map area to include the full extent of all layers and redraw the display */
     void reset();
@@ -124,7 +124,7 @@ public interface MapPane {
 
     /**
      * Registers an object that wishes to receive {@code MapMouseEvent}s such as a {@linkplain
-     * StatusBar}.
+     * org.geotools.swing.control.JMapStatusBar}.
      *
      * @param listener the listener to add
      * @throws IllegalArgumentException if listener is null

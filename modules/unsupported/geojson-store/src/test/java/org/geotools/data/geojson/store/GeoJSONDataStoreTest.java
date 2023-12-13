@@ -19,14 +19,17 @@ package org.geotools.data.geojson.store;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.StringStartsWith.startsWith;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
 import java.io.IOException;
 import java.net.URL;
-import org.geotools.data.FeatureReader;
-import org.geotools.data.Query;
+import org.geotools.api.data.FeatureReader;
+import org.geotools.api.data.Query;
+import org.geotools.api.data.SimpleFeatureSource;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
 import org.geotools.data.geojson.GeoJSONReader;
-import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.referencing.crs.DefaultGeographicCRS;
 import org.geotools.test.TestData;
@@ -34,8 +37,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.Point;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.feature.simple.SimpleFeatureType;
 
 public class GeoJSONDataStoreTest {
     GeoJSONDataStore ds;
@@ -167,5 +168,21 @@ public class GeoJSONDataStoreTest {
             }
         }
         assertEquals(1, cnt);
+    }
+
+    @Test
+    public void testEmptyFeatures() throws IOException {
+        URL url = TestData.url(GeoJSONDataStore.class, "empty-featureCollection.json");
+
+        GeoJSONDataStore fds = new GeoJSONDataStore(url);
+        String type = fds.getNames().get(0).getLocalPart();
+        try (FeatureReader<SimpleFeatureType, SimpleFeature> reader =
+                fds.getFeatureReader(new Query(type), null)) {
+            // No Feature to read, also no NullPointer exception
+            assertFalse(reader.hasNext());
+            SimpleFeatureType schema = reader.getFeatureType();
+            assertNotNull(schema);
+            assertEquals(0, reader.getFeatureType().getAttributeCount());
+        }
     }
 }

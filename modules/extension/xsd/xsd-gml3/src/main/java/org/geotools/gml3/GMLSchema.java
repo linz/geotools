@@ -23,6 +23,10 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import org.geotools.api.feature.type.AttributeType;
+import org.geotools.api.feature.type.ComplexType;
+import org.geotools.api.feature.type.Name;
+import org.geotools.api.feature.type.PropertyDescriptor;
 import org.geotools.feature.NameImpl;
 import org.geotools.feature.type.AttributeDescriptorImpl;
 import org.geotools.feature.type.AttributeTypeImpl;
@@ -34,10 +38,6 @@ import org.geotools.geometry.jts.MultiCurvedGeometry;
 import org.geotools.gml3.smil.SMIL20LANGSchema;
 import org.geotools.xlink.XLINKSchema;
 import org.geotools.xs.XSSchema;
-import org.opengis.feature.type.AttributeType;
-import org.opengis.feature.type.ComplexType;
-import org.opengis.feature.type.Name;
-import org.opengis.feature.type.PropertyDescriptor;
 
 public class GMLSchema extends SchemaImpl {
 
@@ -11319,7 +11319,7 @@ public class GMLSchema extends SchemaImpl {
         AttributeType builtType =
                 new AttributeTypeImpl(
                         new NameImpl("http://www.opengis.net/gml", "MultiSurfaceType"),
-                        org.locationtech.jts.geom.MultiPolygon.class,
+                        MultiSurface.class,
                         false,
                         false,
                         Collections.emptyList(),
@@ -12969,7 +12969,7 @@ public class GMLSchema extends SchemaImpl {
         AttributeType builtType =
                 new AttributeTypeImpl(
                         new NameImpl("http://www.opengis.net/gml", "MultiSurfacePropertyType"),
-                        org.locationtech.jts.geom.MultiPolygon.class,
+                        MultiSurface.class,
                         false,
                         false,
                         Collections.emptyList(),

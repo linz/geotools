@@ -17,6 +17,7 @@
 package org.geotools.styling.visitor;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotSame;
 
 import java.awt.Color;
 import java.awt.Component;
@@ -26,53 +27,54 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import javax.swing.Icon;
+import org.geotools.api.filter.FilterFactory;
+import org.geotools.api.filter.expression.Expression;
+import org.geotools.api.filter.expression.Function;
+import org.geotools.api.filter.expression.Literal;
+import org.geotools.api.style.AnchorPoint;
+import org.geotools.api.style.ColorMapEntry;
+import org.geotools.api.style.ContrastEnhancement;
+import org.geotools.api.style.ContrastMethod;
+import org.geotools.api.style.Displacement;
+import org.geotools.api.style.ExternalGraphic;
+import org.geotools.api.style.ExternalMark;
+import org.geotools.api.style.FeatureTypeStyle;
+import org.geotools.api.style.Fill;
+import org.geotools.api.style.Font;
+import org.geotools.api.style.Graphic;
+import org.geotools.api.style.Halo;
+import org.geotools.api.style.LabelPlacement;
+import org.geotools.api.style.LinePlacement;
+import org.geotools.api.style.LineSymbolizer;
+import org.geotools.api.style.Mark;
+import org.geotools.api.style.OverlapBehaviorEnum;
+import org.geotools.api.style.PointPlacement;
+import org.geotools.api.style.PointSymbolizer;
+import org.geotools.api.style.PolygonSymbolizer;
+import org.geotools.api.style.RasterSymbolizer;
+import org.geotools.api.style.Rule;
+import org.geotools.api.style.SelectedChannelType;
+import org.geotools.api.style.SemanticType;
+import org.geotools.api.style.Stroke;
+import org.geotools.api.style.Style;
+import org.geotools.api.style.StyleFactory;
+import org.geotools.api.style.Symbolizer;
+import org.geotools.api.style.TextSymbolizer;
+import org.geotools.api.util.Cloneable;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.feature.NameImpl;
 import org.geotools.filter.IllegalFilterException;
 import org.geotools.metadata.iso.citation.OnLineResourceImpl;
-import org.geotools.styling.AnchorPoint;
-import org.geotools.styling.ColorMapEntry;
-import org.geotools.styling.ContrastEnhancement;
-import org.geotools.styling.Displacement;
-import org.geotools.styling.ExternalGraphic;
-import org.geotools.styling.ExternalMark;
-import org.geotools.styling.FeatureTypeStyle;
-import org.geotools.styling.Fill;
-import org.geotools.styling.Font;
-import org.geotools.styling.Graphic;
 import org.geotools.styling.GraphicImpl;
-import org.geotools.styling.Halo;
-import org.geotools.styling.LabelPlacement;
-import org.geotools.styling.LinePlacement;
-import org.geotools.styling.LineSymbolizer;
-import org.geotools.styling.Mark;
 import org.geotools.styling.OtherTextImpl;
-import org.geotools.styling.PointPlacement;
-import org.geotools.styling.PointSymbolizer;
-import org.geotools.styling.PolygonSymbolizer;
-import org.geotools.styling.RasterSymbolizer;
-import org.geotools.styling.Rule;
-import org.geotools.styling.SelectedChannelType;
-import org.geotools.styling.Stroke;
-import org.geotools.styling.Style;
 import org.geotools.styling.StyleBuilder;
-import org.geotools.styling.StyleFactory;
-import org.geotools.styling.Symbolizer;
-import org.geotools.styling.TextSymbolizer;
-import org.geotools.styling.TextSymbolizer2;
 import org.geotools.styling.UomOgcMapping;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.opengis.filter.FilterFactory2;
-import org.opengis.filter.expression.Expression;
-import org.opengis.filter.expression.Function;
-import org.opengis.filter.expression.Literal;
-import org.opengis.style.ContrastMethod;
-import org.opengis.style.OverlapBehavior;
-import org.opengis.style.SemanticType;
-import org.opengis.util.Cloneable;
 
 /**
  * Unit test for DuplicatorStyleVisitor.
@@ -82,13 +84,13 @@ import org.opengis.util.Cloneable;
 public class DuplicatingStyleVisitorTest {
     StyleBuilder sb;
     StyleFactory sf;
-    FilterFactory2 ff;
+    FilterFactory ff;
     DuplicatingStyleVisitor visitor;
 
     @Before
     public void setUp() throws Exception {
         sf = CommonFactoryFinder.getStyleFactory(null);
-        ff = CommonFactoryFinder.getFilterFactory2(null);
+        ff = CommonFactoryFinder.getFilterFactory(null);
         sb = new StyleBuilder(sf, ff);
         visitor = new DuplicatingStyleVisitor(sf, ff);
     }
@@ -260,14 +262,14 @@ public class DuplicatingStyleVisitorTest {
     @Test
     public void testRasterSymbolizerWithOverlapBehavior() throws Exception {
         RasterSymbolizer rasterSymb1 = sf.createRasterSymbolizer();
-        rasterSymb1.setOverlapBehavior(OverlapBehavior.AVERAGE);
+        rasterSymb1.setOverlapBehavior(OverlapBehaviorEnum.AVERAGE);
         rasterSymb1.accept(visitor);
         RasterSymbolizer clone1 = (RasterSymbolizer) visitor.getCopy();
         assertEquals(clone1.getOverlapBehavior(), rasterSymb1.getOverlapBehavior());
 
         // Try literal expression
         RasterSymbolizer rasterSymbLiteral = sf.createRasterSymbolizer();
-        rasterSymbLiteral.setOverlap(ff.literal(OverlapBehavior.EARLIEST_ON_TOP.toString()));
+        rasterSymbLiteral.setOverlap(ff.literal(OverlapBehaviorEnum.EARLIEST_ON_TOP.toString()));
         rasterSymbLiteral.accept(visitor);
         RasterSymbolizer cloneLiteral = (RasterSymbolizer) visitor.getCopy();
 
@@ -287,6 +289,20 @@ public class DuplicatingStyleVisitorTest {
         // Compare rastersymbolizer overlap behaviour
         RasterSymbolizer notEq = sf.createRasterSymbolizer();
         Assert.assertNotEquals(notEq.getOverlapBehavior(), rasterSymb1.getOverlapBehavior());
+    }
+
+    @Test
+    public void testRasterSymbolizerOptions() throws Exception {
+        Map<String, String> options = new HashMap<>();
+        options.put("k1", "v1");
+        options.put("k2", "v2");
+        RasterSymbolizer rasterSymb = sf.createRasterSymbolizer();
+        rasterSymb.getOptions().putAll(options);
+        rasterSymb.accept(visitor);
+        RasterSymbolizer clone = (RasterSymbolizer) visitor.getCopy();
+
+        assertEquals(rasterSymb.getOptions(), clone.getOptions());
+        assertNotSame(rasterSymb.getOptions(), clone.getOptions());
     }
 
     @Test
@@ -811,13 +827,13 @@ public class DuplicatingStyleVisitorTest {
     }
 
     /**
-     * Test that {@link TextSymbolizer2} is correctly duplicated.
+     * Test that TextSymbolizer2 is correctly duplicated.
      *
      * @author Stefan Tzeggai, June 29th 2010
      */
     @Test
     public void testTextSymbolizer2() {
-        TextSymbolizer2 symb = (TextSymbolizer2) sf.createTextSymbolizer();
+        TextSymbolizer symb = sf.createTextSymbolizer();
 
         // Create a Graphic with two recognizable values
         GraphicImpl gr = new GraphicImpl(ff);
@@ -834,7 +850,7 @@ public class DuplicatingStyleVisitorTest {
         symb.setOtherText(otherText);
 
         // copy it
-        TextSymbolizer2 copy = (TextSymbolizer2) visitor.copy(symb);
+        TextSymbolizer copy = (TextSymbolizer) visitor.copy(symb);
 
         // compare it
         assertEquals(

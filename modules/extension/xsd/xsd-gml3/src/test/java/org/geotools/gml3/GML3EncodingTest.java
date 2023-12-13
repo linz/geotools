@@ -16,7 +16,9 @@
  */
 package org.geotools.gml3;
 
-import static org.custommonkey.xmlunit.XMLAssert.assertXpathEvaluatesTo;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -24,8 +26,9 @@ import java.math.BigDecimal;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import org.custommonkey.xmlunit.SimpleNamespaceContext;
-import org.custommonkey.xmlunit.XMLUnit;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.feature.type.Name;
 import org.geotools.data.DataUtilities;
 import org.geotools.feature.NameImpl;
 import org.geotools.feature.simple.SimpleFeatureBuilder;
@@ -34,29 +37,26 @@ import org.geotools.gml2.SrsSyntax;
 import org.geotools.gml3.bindings.GML3MockData;
 import org.geotools.gml3.bindings.TEST;
 import org.geotools.gml3.bindings.TestConfiguration;
+import org.geotools.referencing.CRS;
+import org.geotools.test.xml.XmlTestSupport;
 import org.geotools.xsd.Encoder;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.io.WKTReader;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.feature.type.Name;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.Attributes;
 
-public class GML3EncodingTest {
+public class GML3EncodingTest extends XmlTestSupport {
 
-    @Before
-    public void setUp() throws Exception {
-
-        Map<String, String> namespaces = new HashMap<>();
-        namespaces.put("test", TEST.TestFeature.getNamespaceURI());
-        XMLUnit.setXpathNamespaceContext(new SimpleNamespaceContext(namespaces));
+    @Override
+    protected Map<String, String> getNamespaces() {
+        return namespaces(Namespace("test", TEST.TestFeature.getNamespaceURI()));
     }
 
     @Test
@@ -117,6 +117,27 @@ public class GML3EncodingTest {
                 dom.getDocumentElement()
                         .getAttribute("srsName")
                         .startsWith("http://www.opengis.net/def/crs/EPSG/0/"));
+    }
+
+    @Test
+    public void testEncodeSrsSyntaxIAU() throws Exception {
+        Point p = new GeometryFactory().createPoint(new Coordinate(1, 2));
+        p.setUserData(CRS.decode("urn:x-ogc:def:crs:IAU::1000"));
+
+        GMLConfiguration gml = new GMLConfiguration();
+        Document dom = new Encoder(gml).encodeAsDOM(p, GML.Point);
+        assertEquals(
+                "urn:x-ogc:def:crs:IAU:1000", dom.getDocumentElement().getAttribute("srsName"));
+
+        gml.setSrsSyntax(SrsSyntax.OGC_URN);
+        dom = new Encoder(gml).encodeAsDOM(p, GML.Point);
+        assertEquals("urn:ogc:def:crs:IAU::1000", dom.getDocumentElement().getAttribute("srsName"));
+
+        gml.setSrsSyntax(SrsSyntax.OGC_HTTP_URI);
+        dom = new Encoder(gml).encodeAsDOM(p, GML.Point);
+        assertEquals(
+                "http://www.opengis.net/def/crs/IAU/0/1000",
+                dom.getDocumentElement().getAttribute("srsName"));
     }
 
     @Test
@@ -193,9 +214,7 @@ public class GML3EncodingTest {
         encoder.setIndentSize(2);
         String xml = encoder.encodeAsString(feature, TEST.TestFeature);
 
-        // System.out.println(xml);
-        Document dom = XMLUnit.buildControlDocument(xml);
-        assertXpathEvaluatesTo("0.000000015", "//test:decimal", dom);
+        assertThat(xml, hasXPath("//test:decimal", equalTo("0.000000015")));
     }
 
     @Test
@@ -217,10 +236,7 @@ public class GML3EncodingTest {
         Encoder encoder = new Encoder(configuration);
         String result = encoder.encodeAsString(feature, TEST.TestFeature);
 
-        // System.out.println(result);
-
-        Document dom = XMLUnit.buildControlDocument(result);
-        assertXpathEvaluatesTo("One  test", "//test:data", dom);
+        assertThat(result, hasXPath("//test:data", equalTo("One  test")));
     }
 
     @Test

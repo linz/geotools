@@ -16,20 +16,27 @@
  */
 package org.geotools.data.mongodb;
 
+import org.apache.commons.lang3.StringUtils;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.filter.BinaryComparisonOperator;
+import org.geotools.api.filter.PropertyIsLike;
+import org.geotools.api.filter.PropertyIsNull;
+import org.geotools.api.filter.expression.Expression;
+import org.geotools.api.filter.expression.Literal;
+import org.geotools.api.filter.expression.PropertyName;
+import org.geotools.api.filter.spatial.BinarySpatialOperator;
+import org.geotools.api.filter.spatial.DWithin;
 import org.geotools.data.mongodb.complex.JsonSelectAllFunction;
 import org.geotools.data.mongodb.complex.JsonSelectFunction;
 import org.geotools.filter.FilterCapabilities;
 import org.geotools.filter.visitor.ClientTransactionAccessor;
 import org.geotools.filter.visitor.PostPreProcessFilterSplittingVisitor;
-import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.filter.BinaryComparisonOperator;
-import org.opengis.filter.PropertyIsLike;
-import org.opengis.filter.PropertyIsNull;
-import org.opengis.filter.expression.Expression;
-import org.opengis.filter.expression.Literal;
-import org.opengis.filter.expression.PropertyName;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.Point;
 
 public class MongoFilterSplitter extends PostPreProcessFilterSplittingVisitor {
+
+    private MongoCollectionMeta mongoCollectionMeta;
     /**
      * Create a new instance.
      *
@@ -42,8 +49,10 @@ public class MongoFilterSplitter extends PostPreProcessFilterSplittingVisitor {
     public MongoFilterSplitter(
             FilterCapabilities fcs,
             SimpleFeatureType parent,
-            ClientTransactionAccessor transactionAccessor) {
+            ClientTransactionAccessor transactionAccessor,
+            MongoCollectionMeta mongoCollectionMeta) {
         super(fcs, parent, transactionAccessor);
+        this.mongoCollectionMeta = mongoCollectionMeta;
     }
 
     @Override
@@ -66,6 +75,31 @@ public class MongoFilterSplitter extends PostPreProcessFilterSplittingVisitor {
             }
         } else {
             super.visitBinaryComparisonOperator(filter);
+        }
+    }
+
+    @Override
+    protected void visitBinarySpatialOperator(BinarySpatialOperator filter) {
+        // DWithin is delegated to $near operator, which requires geospatial index and works only
+        // with points,
+        // if either condition is not met delegation will not happen
+        Expression expression2 = filter.getExpression2();
+        if (filter instanceof DWithin
+                && expression2 != null
+                && expression2.evaluate(null, Geometry.class) instanceof Point) {
+            if (mongoCollectionMeta != null
+                    && StringUtils.equalsAny(
+                            mongoCollectionMeta
+                                    .getIndexes()
+                                    .get(filter.getExpression1().toString()),
+                            "2dsphere",
+                            "2d")) {
+                super.visitBinarySpatialOperator(filter);
+                return;
+            }
+            postStack.push(filter);
+        } else {
+            super.visitBinarySpatialOperator(filter);
         }
     }
 

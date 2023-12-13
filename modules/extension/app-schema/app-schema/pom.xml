@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <groupId>org.geotools</groupId>
     <artifactId>app-schema</artifactId>
-    <version>30-SNAPSHOT</version>
+    <version>31-SNAPSHOT</version>
   </parent>
 
   <groupId>org.geotools</groupId>
@@ -81,8 +81,8 @@
       <version>1.8.1</version>
       <exclusions>
         <exclusion>
-          <artifactId>commons-beanutils</artifactId>
           <groupId>commons-beanutils</groupId>
+          <artifactId>commons-beanutils</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
@@ -202,7 +202,7 @@
     <dependency>
       <groupId>org.eclipse.jetty</groupId>
       <artifactId>jetty-server</artifactId>
-      <version>9.4.48.v20220622</version>
+      <version>9.4.51.v20230217</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -247,10 +247,10 @@
         <artifactId>maven-source-plugin</artifactId>
         <executions>
           <execution>
-            <phase>package</phase>
             <goals>
               <goal>test-jar</goal>
             </goals>
+            <phase>package</phase>
           </execution>
         </executions>
       </plugin>
@@ -260,10 +260,10 @@
         <artifactId>maven-jar-plugin</artifactId>
         <executions>
           <execution>
-            <phase>package</phase>
             <goals>
               <goal>test-jar</goal>
             </goals>
+            <phase>package</phase>
           </execution>
         </executions>
       </plugin>

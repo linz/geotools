@@ -7,13 +7,13 @@
                                                                                 
         Version: $Id$              
      ======================================================================= -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0                                 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0                                 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <groupId>org.geotools</groupId>
     <artifactId>geotools</artifactId>
-    <version>30-SNAPSHOT</version>
+    <version>31-SNAPSHOT</version>
   </parent>
 
   <!-- =========================================================== -->
@@ -23,6 +23,10 @@
   <packaging>pom</packaging>
   <name>Geotools Release</name>
   <description>Geotools library release packaging</description>
+  <properties>
+    <maven.build.timestamp.format>yyyy</maven.build.timestamp.format>
+    <copyright.year>${maven.build.timestamp}</copyright.year>
+  </properties>
 
   <dependencies>
     <!-- docs dependency only used to schedule release after docs module order        -->
@@ -33,8 +37,8 @@
       <version>${project.version}</version>
       <exclusions>
         <exclusion>
-          <artifactId>*</artifactId>
           <groupId>*</groupId>
+          <artifactId>*</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
@@ -231,7 +235,7 @@
     </dependency>
     <dependency>
       <groupId>org.geotools</groupId>
-      <artifactId>gt-opengis</artifactId>
+      <artifactId>gt-api</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -436,17 +440,71 @@
   <!-- =========================================================== -->
   <build>
     <plugins>
+      <plugin>
+        <artifactId>maven-clean-plugin</artifactId>
+        <configuration>
+          <filesets>
+            <fileset>
+              <directory>src/it/commons/target</directory>
+            </fileset>
+            <fileset>
+              <directory>src/it/log4j/target</directory>
+            </fileset>
+            <fileset>
+              <directory>src/it/logback/target</directory>
+            </fileset>
+            <fileset>
+              <directory>src/it/logging/target</directory>
+            </fileset>
+            <fileset>
+              <directory>src/it/reload4j/target</directory>
+            </fileset>
+          </filesets>
+          <followSymlinks>true</followSymlinks>
+          <failOnError>false</failOnError>
+        </configuration>
+      </plugin>
+      <!-- process markdown templates -->
+      <plugin>
+        <artifactId>maven-resources-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>copy-resources</id>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <phase>process-resources</phase>
+            <configuration>
+              <outputDirectory>${project.basedir}/target/html-template</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>src/markdown/html</directory>
+                  <filtering>true</filtering>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <!-- process markdown -->
       <plugin>
         <groupId>com.ruleoftech</groupId>
         <artifactId>markdown-page-generator-plugin</artifactId>
+        <configuration>
+          <recursiveInput>false</recursiveInput>
+          <transformRelativeMarkdownLinks>true</transformRelativeMarkdownLinks>
+          <headerHtmlFile>${project.basedir}/target/html-template/header.html</headerHtmlFile>
+          <footerHtmlFile>${project.basedir}/target/html-template/footer.html</footerHtmlFile>
+          <pegdownExtensions>TABLES,FENCED_CODE_BLOCKS</pegdownExtensions>
+          <defaultTitle>true</defaultTitle>
+        </configuration>
         <executions>
           <execution>
             <id>licenses</id>
-            <phase>process-resources</phase>
             <goals>
               <goal>generate</goal>
             </goals>
+            <phase>process-resources</phase>
             <configuration>
               <inputDirectory>${project.basedir}/../licenses</inputDirectory>
               <outputDirectory>${project.build.directory}/html/licenses</outputDirectory>
@@ -454,37 +512,21 @@
           </execution>
           <execution>
             <id>readme</id>
-            <phase>process-resources</phase>
             <goals>
               <goal>generate</goal>
             </goals>
+            <phase>process-resources</phase>
             <configuration>
               <inputDirectory>${project.basedir}/src/markdown</inputDirectory>
               <outputDirectory>${project.build.directory}/html</outputDirectory>
             </configuration>
           </execution>
         </executions>
-        <configuration>
-          <recursiveInput>false</recursiveInput>
-          <transformRelativeMarkdownLinks>true</transformRelativeMarkdownLinks>
-          <headerHtmlFile>${project.basedir}/src/markdown/html/header.html</headerHtmlFile>
-          <footerHtmlFile>${project.basedir}/src/markdown/html/footer.html</footerHtmlFile>
-          <pegdownExtensions>TABLES,FENCED_CODE_BLOCKS</pegdownExtensions>
-          <defaultTitle>true</defaultTitle>
-        </configuration>
       </plugin>
 
       <!-- package distribution -->
       <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
-        <executions>
-          <execution>
-            <id>make-assembly</id>
-            <goals>
-              <goal>single</goal>
-            </goals>
-          </execution>
-        </executions>
         <configuration>
           <finalName>geotools-${project.version}</finalName>
           <descriptors>
@@ -493,17 +535,58 @@
             <descriptor>src/assembly/userDocDist.xml</descriptor>
           </descriptors>
         </configuration>
+        <executions>
+          <execution>
+            <id>make-assembly</id>
+            <goals>
+              <goal>single</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
-      <!-- no need to deploy to nexus repo -->
+      <!-- integration testing to see if packages are good -->
       <plugin>
-        <artifactId>maven-deploy-plugin</artifactId>
+        <artifactId>maven-invoker-plugin</artifactId>
         <configuration>
-          <skip>true</skip>
+          <parallelThreads>1C</parallelThreads>
+          <ignoreFailures>true</ignoreFailures>
+          <cloneProjectsTo>${project.build.directory}/it</cloneProjectsTo>
+          <settingsFile>src/it/settings.xml</settingsFile>
+          <localRepositoryPath>${project.build.directory}/local-repo</localRepositoryPath>
+          <showErrors>true</showErrors>
+          <streamLogs>false</streamLogs>
         </configuration>
+        <executions>
+          <execution>
+            <id>integration-test</id>
+            <goals>
+              <!-- run exec:exec to generate output -->
+              <goal>integration-test</goal>
+              <!-- run postbuild.sh to check output -->
+              <goal>verify</goal>
+            </goals>
+            <configuration>
+              <goals>
+                <goal>clean</goal>
+                <goal>compile</goal>
+                <goal>exec:exec</goal>
+                <goal>integration-test</goal>
+              </goals>
+              <verifyHookScript>postbuild.bsh</verifyHookScript>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <!-- no need to install this to local repo -->
       <plugin>
         <artifactId>maven-install-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+      <!-- no need to deploy to nexus repo -->
+      <plugin>
+        <artifactId>maven-deploy-plugin</artifactId>
         <configuration>
           <skip>true</skip>
         </configuration>

@@ -25,6 +25,8 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.xml.namespace.QName;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
 import org.geotools.data.ows.AbstractOpenWebService;
 import org.geotools.data.ows.GetCapabilitiesRequest;
 import org.geotools.data.ows.Request;
@@ -48,8 +50,6 @@ import org.geotools.util.SuppressFBWarnings;
 import org.geotools.util.Version;
 import org.geotools.util.logging.Logging;
 import org.geotools.xml.XMLHandlerHints;
-import org.opengis.filter.Filter;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -78,7 +78,8 @@ public class WFSClient extends AbstractOpenWebService<WFSGetCapabilities, QName>
                 httpClient,
                 capabilities,
                 Collections.singletonMap(
-                        XMLHandlerHints.ENTITY_RESOLVER, config.getEntityResolver()));
+                        XMLHandlerHints.ENTITY_RESOLVER, config.getEntityResolver()),
+                config.additionalHeaders);
         this.config = config;
         super.specification = determineCorrectStrategy();
         ((WFSStrategy) specification).setCapabilities(super.capabilities);
@@ -222,7 +223,9 @@ public class WFSClient extends AbstractOpenWebService<WFSGetCapabilities, QName>
             } else if (uri.toLowerCase().contains("/arcgis/services/")
                     && Versions.v2_0_0.equals(capsVersion)) {
                 strategy = new ArcGisStrategy_2_0();
-            } else if (uri.contains("mapserver") || uri.contains("map=")) {
+            } else if ((uri.contains("mapserver") || uri.contains("map="))
+                    && !Versions.v2_0_0.equals(capsVersion)) {
+                // v 1.x strategy, won't work with WFS 2.0
                 strategy = new MapServerWFSStrategy(capabilitiesDoc);
             }
         }
@@ -313,8 +316,7 @@ public class WFSClient extends AbstractOpenWebService<WFSGetCapabilities, QName>
     }
 
     public GetFeatureRequest createGetFeatureRequest() {
-        WFSStrategy strategy = getStrategy();
-        return new GetFeatureRequest(config, strategy);
+        return new GetFeatureRequest(config, getStrategy(), getHTTPClient());
     }
 
     @Override
@@ -432,7 +434,7 @@ public class WFSClient extends AbstractOpenWebService<WFSGetCapabilities, QName>
      *
      * @return a two-element array where the first element is the supported filter and the second
      *     the one to post-process
-     * @see org.geotools.data.wfs.internal.WFSStrategy#splitFilters(org.opengis.filter.Filter)
+     * @see WFSStrategy#splitFilters(QName, Filter)
      */
     public Filter[] splitFilters(QName typeName, Filter filter) {
         return getStrategy().splitFilters(typeName, filter);

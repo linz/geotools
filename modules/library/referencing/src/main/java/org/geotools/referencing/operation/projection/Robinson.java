@@ -27,13 +27,13 @@ import static java.lang.Math.toDegrees;
 import static java.lang.Math.toRadians;
 
 import java.awt.geom.Point2D;
+import org.geotools.api.parameter.ParameterDescriptor;
+import org.geotools.api.parameter.ParameterDescriptorGroup;
+import org.geotools.api.parameter.ParameterNotFoundException;
+import org.geotools.api.parameter.ParameterValueGroup;
+import org.geotools.api.referencing.operation.MathTransform;
 import org.geotools.metadata.iso.citation.Citations;
 import org.geotools.referencing.NamedIdentifier;
-import org.opengis.parameter.ParameterDescriptor;
-import org.opengis.parameter.ParameterDescriptorGroup;
-import org.opengis.parameter.ParameterNotFoundException;
-import org.opengis.parameter.ParameterValueGroup;
-import org.opengis.referencing.operation.MathTransform;
 
 /**
  * Robinson projection
@@ -267,7 +267,9 @@ public class Robinson extends MapProjection {
                             new NamedIdentifier(Citations.GEOTOOLS, "Robinson"),
                             new NamedIdentifier(Citations.ESRI, "Robinson")
                         },
-                        new ParameterDescriptor[] {SEMI_MAJOR, SEMI_MINOR, CENTRAL_MERIDIAN});
+                        new ParameterDescriptor[] {
+                            SEMI_MAJOR, SEMI_MINOR, CENTRAL_MERIDIAN, FALSE_EASTING, FALSE_NORTHING
+                        });
 
         /** Constructs a new provider. */
         public Provider() {

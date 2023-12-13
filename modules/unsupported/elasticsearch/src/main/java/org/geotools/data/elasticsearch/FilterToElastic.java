@@ -19,6 +19,7 @@ package org.geotools.data.elasticsearch;
 import static org.geotools.process.elasticsearch.ElasticBucketVisitor.ES_AGGREGATE_BUCKET;
 import static org.geotools.util.factory.Hints.VIRTUAL_TABLE_PARAMETERS;
 
+import com.bedatadriven.jackson.datatype.jts.JtsModule;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.google.common.collect.ImmutableList;
@@ -31,8 +32,73 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.geotools.data.Query;
+import org.geotools.api.data.Query;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.feature.type.AttributeDescriptor;
+import org.geotools.api.feature.type.GeometryDescriptor;
+import org.geotools.api.filter.And;
+import org.geotools.api.filter.BinaryComparisonOperator;
+import org.geotools.api.filter.BinaryLogicOperator;
+import org.geotools.api.filter.ExcludeFilter;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.filter.FilterFactory;
+import org.geotools.api.filter.FilterVisitor;
+import org.geotools.api.filter.Id;
+import org.geotools.api.filter.IncludeFilter;
+import org.geotools.api.filter.Not;
+import org.geotools.api.filter.Or;
+import org.geotools.api.filter.PropertyIsBetween;
+import org.geotools.api.filter.PropertyIsEqualTo;
+import org.geotools.api.filter.PropertyIsGreaterThan;
+import org.geotools.api.filter.PropertyIsGreaterThanOrEqualTo;
+import org.geotools.api.filter.PropertyIsLessThan;
+import org.geotools.api.filter.PropertyIsLessThanOrEqualTo;
+import org.geotools.api.filter.PropertyIsLike;
+import org.geotools.api.filter.PropertyIsNil;
+import org.geotools.api.filter.PropertyIsNotEqualTo;
+import org.geotools.api.filter.PropertyIsNull;
+import org.geotools.api.filter.expression.Add;
+import org.geotools.api.filter.expression.BinaryExpression;
+import org.geotools.api.filter.expression.Divide;
+import org.geotools.api.filter.expression.Expression;
+import org.geotools.api.filter.expression.ExpressionVisitor;
+import org.geotools.api.filter.expression.Function;
+import org.geotools.api.filter.expression.Literal;
+import org.geotools.api.filter.expression.Multiply;
+import org.geotools.api.filter.expression.NilExpression;
+import org.geotools.api.filter.expression.PropertyName;
+import org.geotools.api.filter.expression.Subtract;
+import org.geotools.api.filter.identity.Identifier;
+import org.geotools.api.filter.spatial.BBOX;
+import org.geotools.api.filter.spatial.Beyond;
+import org.geotools.api.filter.spatial.BinarySpatialOperator;
+import org.geotools.api.filter.spatial.Contains;
+import org.geotools.api.filter.spatial.Crosses;
+import org.geotools.api.filter.spatial.DWithin;
+import org.geotools.api.filter.spatial.Disjoint;
+import org.geotools.api.filter.spatial.Equals;
+import org.geotools.api.filter.spatial.Intersects;
+import org.geotools.api.filter.spatial.Overlaps;
+import org.geotools.api.filter.spatial.Touches;
+import org.geotools.api.filter.spatial.Within;
+import org.geotools.api.filter.temporal.After;
+import org.geotools.api.filter.temporal.AnyInteracts;
+import org.geotools.api.filter.temporal.Before;
+import org.geotools.api.filter.temporal.Begins;
+import org.geotools.api.filter.temporal.BegunBy;
+import org.geotools.api.filter.temporal.BinaryTemporalOperator;
+import org.geotools.api.filter.temporal.During;
+import org.geotools.api.filter.temporal.EndedBy;
+import org.geotools.api.filter.temporal.Ends;
+import org.geotools.api.filter.temporal.Meets;
+import org.geotools.api.filter.temporal.MetBy;
+import org.geotools.api.filter.temporal.OverlappedBy;
+import org.geotools.api.filter.temporal.TContains;
+import org.geotools.api.filter.temporal.TEquals;
+import org.geotools.api.filter.temporal.TOverlaps;
+import org.geotools.api.temporal.Period;
 import org.geotools.data.elasticsearch.date.DateFormat;
 import org.geotools.data.elasticsearch.date.ElasticsearchDateConverter;
 import org.geotools.data.geojson.GeoJSONWriter;
@@ -43,73 +109,10 @@ import org.geotools.util.Converters;
 import org.geotools.util.factory.Hints;
 import org.geotools.util.logging.Logging;
 import org.locationtech.jts.geom.CoordinateSequence;
+import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LinearRing;
-import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.feature.type.AttributeDescriptor;
-import org.opengis.feature.type.GeometryDescriptor;
-import org.opengis.filter.And;
-import org.opengis.filter.BinaryComparisonOperator;
-import org.opengis.filter.BinaryLogicOperator;
-import org.opengis.filter.ExcludeFilter;
-import org.opengis.filter.Filter;
-import org.opengis.filter.FilterFactory;
-import org.opengis.filter.FilterVisitor;
-import org.opengis.filter.Id;
-import org.opengis.filter.IncludeFilter;
-import org.opengis.filter.Not;
-import org.opengis.filter.Or;
-import org.opengis.filter.PropertyIsBetween;
-import org.opengis.filter.PropertyIsEqualTo;
-import org.opengis.filter.PropertyIsGreaterThan;
-import org.opengis.filter.PropertyIsGreaterThanOrEqualTo;
-import org.opengis.filter.PropertyIsLessThan;
-import org.opengis.filter.PropertyIsLessThanOrEqualTo;
-import org.opengis.filter.PropertyIsLike;
-import org.opengis.filter.PropertyIsNil;
-import org.opengis.filter.PropertyIsNotEqualTo;
-import org.opengis.filter.PropertyIsNull;
-import org.opengis.filter.expression.Add;
-import org.opengis.filter.expression.BinaryExpression;
-import org.opengis.filter.expression.Divide;
-import org.opengis.filter.expression.Expression;
-import org.opengis.filter.expression.ExpressionVisitor;
-import org.opengis.filter.expression.Function;
-import org.opengis.filter.expression.Literal;
-import org.opengis.filter.expression.Multiply;
-import org.opengis.filter.expression.NilExpression;
-import org.opengis.filter.expression.PropertyName;
-import org.opengis.filter.expression.Subtract;
-import org.opengis.filter.identity.Identifier;
-import org.opengis.filter.spatial.BBOX;
-import org.opengis.filter.spatial.Beyond;
-import org.opengis.filter.spatial.BinarySpatialOperator;
-import org.opengis.filter.spatial.Contains;
-import org.opengis.filter.spatial.Crosses;
-import org.opengis.filter.spatial.DWithin;
-import org.opengis.filter.spatial.Disjoint;
-import org.opengis.filter.spatial.Equals;
-import org.opengis.filter.spatial.Intersects;
-import org.opengis.filter.spatial.Overlaps;
-import org.opengis.filter.spatial.Touches;
-import org.opengis.filter.spatial.Within;
-import org.opengis.filter.temporal.After;
-import org.opengis.filter.temporal.AnyInteracts;
-import org.opengis.filter.temporal.Before;
-import org.opengis.filter.temporal.Begins;
-import org.opengis.filter.temporal.BegunBy;
-import org.opengis.filter.temporal.BinaryTemporalOperator;
-import org.opengis.filter.temporal.During;
-import org.opengis.filter.temporal.EndedBy;
-import org.opengis.filter.temporal.Ends;
-import org.opengis.filter.temporal.Meets;
-import org.opengis.filter.temporal.MetBy;
-import org.opengis.filter.temporal.OverlappedBy;
-import org.opengis.filter.temporal.TContains;
-import org.opengis.filter.temporal.TEquals;
-import org.opengis.filter.temporal.TOverlaps;
-import org.opengis.temporal.Period;
 
 /**
  * Encodes an OGC {@link Filter} and creates a filter for an Elasticsearch query. Optionally applies
@@ -236,7 +239,7 @@ class FilterToElastic implements FilterVisitor, ExpressionVisitor {
         return capabilities; // maybe clone?  Make immutable somehow
     }
 
-    // BEGIN IMPLEMENTING org.opengis.filter.FilterVisitor METHODS
+    // BEGIN IMPLEMENTING org.geotools.api.filter.FilterVisitor METHODS
 
     /**
      * Writes the FilterBuilder for the ExcludeFilter.
@@ -964,9 +967,9 @@ class FilterToElastic implements FilterVisitor, ExpressionVisitor {
         return extraData;
     }
 
-    // END IMPLEMENTING org.opengis.filter.FilterVisitor METHODS
+    // END IMPLEMENTING org.geotools.api.filter.FilterVisitor METHODS
 
-    // START IMPLEMENTING org.opengis.filter.ExpressionVisitor METHODS
+    // START IMPLEMENTING org.geotools.api.filter.ExpressionVisitor METHODS
 
     /**
      * Writes the FilterBuilder for the attribute Expression.
@@ -1217,9 +1220,31 @@ class FilterToElastic implements FilterVisitor, ExpressionVisitor {
             final CoordinateSequence coordinates = linearRing.getCoordinateSequence();
             currentGeometry = factory.createLineString(coordinates);
         }
-
-        final String geoJson = GeoJSONWriter.toGeoJSON(currentGeometry);
+        int maxDecimals = getMaxDecimalsForEnvelope(currentGeometry.getEnvelopeInternal());
+        final String geoJson = GeoJSONWriter.toGeoJSON(currentGeometry, maxDecimals);
         currentShapeBuilder = mapReader.readValue(geoJson);
+    }
+
+    protected static int getMaxDecimalsForEnvelope(Envelope envelope) {
+        double min = Math.min(Math.abs(envelope.getWidth()), Math.abs(envelope.getHeight()));
+        if (min == 0) {
+            LOGGER.log(
+                    Level.WARNING,
+                    "BBox Geometry has no width or height, it is either a point or a line.");
+            return JtsModule.DEFAULT_MAX_DECIMALS;
+        }
+        double decimalPart = min - Math.floor(min);
+        // min dimension is whole number but the other dimension might have decimals
+        if (decimalPart == 0) {
+            return JtsModule.DEFAULT_MAX_DECIMALS;
+        }
+        double log = Math.log10(decimalPart);
+        int numDecimals = Math.abs((int) Math.floor(log) + 1);
+        if (numDecimals <= JtsModule.DEFAULT_MAX_DECIMALS) {
+            return JtsModule.DEFAULT_MAX_DECIMALS;
+        } else {
+            return numDecimals;
+        }
     }
 
     private Object visitBinarySpatialOperator(
@@ -1241,7 +1266,7 @@ class FilterToElastic implements FilterVisitor, ExpressionVisitor {
         throw new UnsupportedOperationException("Function support not implemented");
     }
 
-    // END IMPLEMENTING org.opengis.filter.ExpressionVisitor METHODS
+    // END IMPLEMENTING org.geotools.api.filter.ExpressionVisitor METHODS
 
     private void updateDateFormatter(AttributeDescriptor attType) {
         if (attType != null) {

@@ -48,14 +48,35 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 import javax.sql.DataSource;
 import org.apache.commons.lang3.ArrayUtils;
-import org.geotools.data.DataStore;
+import org.geotools.api.data.DataStore;
+import org.geotools.api.data.FeatureStore;
+import org.geotools.api.data.Query;
+import org.geotools.api.data.Transaction;
+import org.geotools.api.data.Transaction.State;
+import org.geotools.api.feature.FeatureVisitor;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.feature.type.AttributeDescriptor;
+import org.geotools.api.feature.type.GeometryDescriptor;
+import org.geotools.api.feature.type.Name;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.filter.Id;
+import org.geotools.api.filter.PropertyIsLessThanOrEqualTo;
+import org.geotools.api.filter.expression.BinaryExpression;
+import org.geotools.api.filter.expression.Expression;
+import org.geotools.api.filter.expression.Function;
+import org.geotools.api.filter.expression.Literal;
+import org.geotools.api.filter.expression.PropertyName;
+import org.geotools.api.filter.identity.FeatureId;
+import org.geotools.api.filter.identity.GmlObjectId;
+import org.geotools.api.filter.sort.SortBy;
+import org.geotools.api.filter.sort.SortOrder;
+import org.geotools.api.referencing.FactoryException;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
+import org.geotools.api.referencing.operation.TransformException;
 import org.geotools.data.DefaultTransaction;
-import org.geotools.data.FeatureStore;
 import org.geotools.data.GmlObjectStore;
 import org.geotools.data.InProcessLockingManager;
-import org.geotools.data.Query;
-import org.geotools.data.Transaction;
-import org.geotools.data.Transaction.State;
 import org.geotools.data.jdbc.FilterToSQL;
 import org.geotools.data.jdbc.FilterToSQLException;
 import org.geotools.data.jdbc.datasource.ManageableDataSource;
@@ -76,6 +97,7 @@ import org.geotools.feature.visitor.UniqueVisitor;
 import org.geotools.filter.FilterCapabilities;
 import org.geotools.filter.visitor.ExpressionTypeVisitor;
 import org.geotools.filter.visitor.PostPreProcessFilterSplittingVisitor;
+import org.geotools.geometry.jts.CurvedGeometry;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.jdbc.JoinInfo.JoinPart;
 import org.geotools.referencing.CRS;
@@ -86,27 +108,6 @@ import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
-import org.opengis.feature.FeatureVisitor;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.feature.type.AttributeDescriptor;
-import org.opengis.feature.type.GeometryDescriptor;
-import org.opengis.feature.type.Name;
-import org.opengis.filter.Filter;
-import org.opengis.filter.Id;
-import org.opengis.filter.PropertyIsLessThanOrEqualTo;
-import org.opengis.filter.expression.BinaryExpression;
-import org.opengis.filter.expression.Expression;
-import org.opengis.filter.expression.Function;
-import org.opengis.filter.expression.Literal;
-import org.opengis.filter.expression.PropertyName;
-import org.opengis.filter.identity.FeatureId;
-import org.opengis.filter.identity.GmlObjectId;
-import org.opengis.filter.sort.SortBy;
-import org.opengis.filter.sort.SortOrder;
-import org.opengis.referencing.FactoryException;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
-import org.opengis.referencing.operation.TransformException;
 
 /**
  * Datastore implementation for jdbc based relational databases.
@@ -1430,6 +1431,16 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
             }
         }
 
+        // In the SQL standard distinct and order by can work only if all order by attributes also
+        // show up in the select
+        // Given the Unique visitor makes no promise regarding sorting, it's easier to just remove
+        // the sort
+        if (visitor instanceof UniqueVisitor
+                && query.getSortBy() != null
+                && query.getSortBy().length > 0) {
+            query.setSortBy();
+        }
+
         // if the visitor is limiting the result to a given start - max, we will
         // try to apply limits to the aggregate query
         LimitingVisitor limitingVisitor = null;
@@ -1555,6 +1566,7 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
      */
     private boolean fullySupports(Expression expression) {
         if (expression == null) {
+
             throw new IllegalArgumentException("Null expression can not be unpacked");
         }
 
@@ -1914,7 +1926,7 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
                     }
 
                     if (Geometry.class.isAssignableFrom(binding)) {
-                        Geometry g = (Geometry) value;
+                        Geometry g = linearize(value, binding);
                         int srid = getGeometrySRID(g, att);
                         int dimension = getGeometryDimension(g, att);
                         dialect.setGeometryValue(g, dimension, srid, binding, ps, i);
@@ -1944,6 +1956,17 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
         } finally {
             closeSafe(ps);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Geometry linearize(Object value, Class<?> binding) {
+        Geometry g = (Geometry) value;
+        if (CurvedGeometry.class.isInstance(g)
+                && !CurvedGeometry.class.isAssignableFrom(binding)
+                && !binding.equals(Geometry.class)) {
+            return ((CurvedGeometry<? extends Geometry>) g).linearize();
+        }
+        return g;
     }
 
     static void checkAllInserted(int[] inserts, int size) throws IOException {
@@ -3153,6 +3176,7 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
 
         return sql.toString();
     }
+
     /**
      * Creates the prepared statement for a select from the geometry association table.
      *
@@ -3810,8 +3834,8 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
             }
 
             if (binding != null && Geometry.class.isAssignableFrom(binding)) {
-                dialect.setGeometryValue(
-                        (Geometry) value, dimension, srid, binding, ps, offset + i + 1);
+                Geometry g = linearize(value, binding);
+                dialect.setGeometryValue(g, dimension, srid, binding, ps, offset + i + 1);
             } else if (ad != null && this.dialect.isArray(ad)) {
                 dialect.setArrayValue(value, ad, ps, offset + i + 1, cx);
             } else {
@@ -4405,7 +4429,7 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
             } else {
                 if (Geometry.class.isAssignableFrom(binding)) {
                     try {
-                        Geometry g = (Geometry) value;
+                        Geometry g = linearize(value, binding);
                         int srid = getGeometrySRID(g, att);
                         int dimension = getGeometryDimension(g, att);
                         dialect.encodeGeometryValue(g, dimension, srid, sql);
@@ -4554,7 +4578,7 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
             Object value = values[i];
             if (Geometry.class.isAssignableFrom(binding)) {
                 try {
-                    Geometry g = (Geometry) value;
+                    Geometry g = linearize(value, binding);
                     int srid = getGeometrySRID(g, att);
                     int dimension = getGeometryDimension(g, att);
                     dialect.encodeGeometryValue(g, dimension, srid, sql);
@@ -4662,7 +4686,7 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
             Class binding = att.getType().getBinding();
             Object value = values[i];
             if (Geometry.class.isAssignableFrom(binding)) {
-                Geometry g = (Geometry) value;
+                Geometry g = linearize(value, binding);
                 dialect.setGeometryValue(
                         g, getDescriptorDimension(att), getDescriptorSRID(att), binding, ps, j + 1);
             } else {
@@ -5012,6 +5036,7 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
         }
         dataSource = null;
     }
+
     /**
      * Checks if geometry generalization required and makes sense
      *
@@ -5033,6 +5058,7 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
     protected boolean isSimplificationRequired(Hints hints, GeometryDescriptor gatt) {
         return isGeometryReduceRequired(hints, gatt, Hints.GEOMETRY_SIMPLIFICATION);
     }
+
     /**
      * Checks if reduction required and makes sense
      *

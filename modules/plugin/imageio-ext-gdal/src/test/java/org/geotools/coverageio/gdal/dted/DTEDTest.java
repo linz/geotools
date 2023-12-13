@@ -25,6 +25,10 @@ import java.util.Iterator;
 import java.util.logging.Level;
 import javax.media.jai.ImageLayout;
 import javax.media.jai.JAI;
+import org.geotools.api.parameter.GeneralParameterValue;
+import org.geotools.api.parameter.ParameterValue;
+import org.geotools.api.referencing.FactoryException;
+import org.geotools.api.referencing.NoSuchAuthorityCodeException;
 import org.geotools.coverage.grid.GridCoverage2D;
 import org.geotools.coverage.grid.GridEnvelope2D;
 import org.geotools.coverage.grid.GridGeometry2D;
@@ -33,15 +37,11 @@ import org.geotools.coverage.grid.io.GridFormatFactorySpi;
 import org.geotools.coverage.grid.io.GridFormatFinder;
 import org.geotools.coverageio.gdal.BaseGDALGridCoverage2DReader;
 import org.geotools.coverageio.gdal.GDALTestCase;
-import org.geotools.geometry.GeneralEnvelope;
+import org.geotools.geometry.GeneralBounds;
 import org.geotools.test.TestData;
 import org.geotools.util.factory.Hints;
 import org.junit.Assert;
 import org.junit.Test;
-import org.opengis.parameter.GeneralParameterValue;
-import org.opengis.parameter.ParameterValue;
-import org.opengis.referencing.FactoryException;
-import org.opengis.referencing.NoSuchAuthorityCodeException;
 
 /**
  * @author Daniele Romagnoli, GeoSolutions
@@ -59,10 +59,6 @@ public final class DTEDTest extends GDALTestCase {
 
     @Test
     public void test() throws Exception {
-        if (!testingEnabled()) {
-            return;
-        }
-
         // Preparing an useful layout in case the image is striped.
         final ImageLayout l = new ImageLayout();
         l.setTileGridXOffset(0).setTileGridYOffset(0).setTileHeight(512).setTileWidth(512);
@@ -93,9 +89,9 @@ public final class DTEDTest extends GDALTestCase {
         // /////////////////////////////////////////////////////////////////////
         final double cropFactor = 2.0;
         final Rectangle range = ((GridEnvelope2D) reader.getOriginalGridRange());
-        final GeneralEnvelope oldEnvelope = reader.getOriginalEnvelope();
-        final GeneralEnvelope cropEnvelope =
-                new GeneralEnvelope(
+        final GeneralBounds oldEnvelope = reader.getOriginalEnvelope();
+        final GeneralBounds cropEnvelope =
+                new GeneralBounds(
                         new double[] {
                             oldEnvelope.getLowerCorner().getOrdinate(0)
                                     + (oldEnvelope.getSpan(0) / cropFactor),
@@ -125,10 +121,6 @@ public final class DTEDTest extends GDALTestCase {
 
     @Test
     public void testService() throws NoSuchAuthorityCodeException, FactoryException {
-        if (!testingEnabled()) {
-            return;
-        }
-
         GridFormatFinder.scanForPlugins();
 
         Iterator<GridFormatFactorySpi> list = GridFormatFinder.getAvailableFormats().iterator();

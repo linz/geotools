@@ -22,36 +22,41 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.feature.type.FeatureType;
+import org.geotools.api.feature.type.PropertyDescriptor;
+import org.geotools.api.filter.And;
+import org.geotools.api.filter.BinaryComparisonOperator;
+import org.geotools.api.filter.BinaryLogicOperator;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.filter.FilterFactory;
+import org.geotools.api.filter.Id;
+import org.geotools.api.filter.Not;
+import org.geotools.api.filter.Or;
+import org.geotools.api.filter.PropertyIsBetween;
+import org.geotools.api.filter.PropertyIsEqualTo;
+import org.geotools.api.filter.PropertyIsGreaterThan;
+import org.geotools.api.filter.PropertyIsGreaterThanOrEqualTo;
+import org.geotools.api.filter.PropertyIsLessThan;
+import org.geotools.api.filter.PropertyIsLessThanOrEqualTo;
+import org.geotools.api.filter.PropertyIsLike;
+import org.geotools.api.filter.PropertyIsNil;
+import org.geotools.api.filter.PropertyIsNotEqualTo;
+import org.geotools.api.filter.PropertyIsNull;
+import org.geotools.api.filter.expression.Add;
+import org.geotools.api.filter.expression.Divide;
+import org.geotools.api.filter.expression.Expression;
+import org.geotools.api.filter.expression.Literal;
+import org.geotools.api.filter.expression.Multiply;
+import org.geotools.api.filter.expression.NilExpression;
+import org.geotools.api.filter.expression.PropertyName;
+import org.geotools.api.filter.expression.SimplifiableFunction;
+import org.geotools.api.filter.expression.Subtract;
+import org.geotools.api.filter.expression.VolatileFunction;
+import org.geotools.api.filter.identity.FeatureId;
+import org.geotools.api.filter.identity.GmlObjectId;
+import org.geotools.api.filter.identity.Identifier;
 import org.geotools.filter.FilterAttributeExtractor;
-import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.feature.type.FeatureType;
-import org.opengis.feature.type.PropertyDescriptor;
-import org.opengis.filter.And;
-import org.opengis.filter.BinaryComparisonOperator;
-import org.opengis.filter.BinaryLogicOperator;
-import org.opengis.filter.Filter;
-import org.opengis.filter.FilterFactory2;
-import org.opengis.filter.Id;
-import org.opengis.filter.Not;
-import org.opengis.filter.Or;
-import org.opengis.filter.PropertyIsBetween;
-import org.opengis.filter.PropertyIsEqualTo;
-import org.opengis.filter.PropertyIsGreaterThan;
-import org.opengis.filter.PropertyIsGreaterThanOrEqualTo;
-import org.opengis.filter.PropertyIsLessThan;
-import org.opengis.filter.PropertyIsLessThanOrEqualTo;
-import org.opengis.filter.PropertyIsLike;
-import org.opengis.filter.PropertyIsNil;
-import org.opengis.filter.PropertyIsNotEqualTo;
-import org.opengis.filter.PropertyIsNull;
-import org.opengis.filter.expression.Expression;
-import org.opengis.filter.expression.Literal;
-import org.opengis.filter.expression.NilExpression;
-import org.opengis.filter.expression.PropertyName;
-import org.opengis.filter.expression.VolatileFunction;
-import org.opengis.filter.identity.FeatureId;
-import org.opengis.filter.identity.GmlObjectId;
-import org.opengis.filter.identity.Identifier;
 
 /**
  * Takes a filter and returns a simplified, equivalent one. At the moment the filter:
@@ -384,7 +389,7 @@ public class SimplifyingFilterVisitor extends DuplicatingFilterVisitor {
 
     @Override
     public Object visit(Not filter, Object extraData) {
-        FilterFactory2 ff = getFactory(extraData);
+        FilterFactory ff = getFactory(extraData);
         Filter inner = filter.getFilter();
         if (inner instanceof Not) {
             // simplify out double negation
@@ -460,7 +465,7 @@ public class SimplifyingFilterVisitor extends DuplicatingFilterVisitor {
     }
 
     @Override
-    public Object visit(org.opengis.filter.expression.Function function, Object extraData) {
+    public Object visit(org.geotools.api.filter.expression.Function function, Object extraData) {
         // can't optimize out volatile functions
         if (isVolatileFunction(function)) {
             return super.visit(function, extraData);
@@ -478,16 +483,24 @@ public class SimplifyingFilterVisitor extends DuplicatingFilterVisitor {
         if (attributeExtractor.isConstantExpression()) {
             Object result = function.evaluate(null);
             return ff.literal(result);
-        } else {
-            return super.visit(function, extraData);
         }
+
+        // perform simplifying copy, the arguments will be simplified if possible
+        Object result = super.visit(function, extraData);
+
+        // past that, we can try to ask the function to simplify itself
+        if (result instanceof SimplifiableFunction) {
+            return ((SimplifiableFunction) result).simplify(ff, featureType);
+        }
+
+        return result;
     }
 
     /**
      * Checks if a function is volatile in this context. By default it checks if the function
      * implements the {@link VolatileFunction} interface, subclasses can override
      */
-    protected boolean isVolatileFunction(org.opengis.filter.expression.Function function) {
+    protected boolean isVolatileFunction(org.geotools.api.filter.expression.Function function) {
         return function instanceof VolatileFunction;
     }
 
@@ -614,6 +627,50 @@ public class SimplifyingFilterVisitor extends DuplicatingFilterVisitor {
         } else {
             return clone;
         }
+    }
+
+    @Override
+    public Object visit(Add expression, Object extraData) {
+        Expression expr1 = visit(expression.getExpression1(), extraData);
+        Expression expr2 = visit(expression.getExpression2(), extraData);
+        Add result = getFactory(extraData).add(expr1, expr2);
+        if (expr1 instanceof Literal && expr2 instanceof Literal) {
+            return getFactory(extraData).literal(result.evaluate(null));
+        }
+        return result;
+    }
+
+    @Override
+    public Object visit(Divide expression, Object extraData) {
+        Expression expr1 = visit(expression.getExpression1(), extraData);
+        Expression expr2 = visit(expression.getExpression2(), extraData);
+        Divide result = getFactory(extraData).divide(expr1, expr2);
+        if (expr1 instanceof Literal && expr2 instanceof Literal) {
+            return getFactory(extraData).literal(result.evaluate(null));
+        }
+        return result;
+    }
+
+    @Override
+    public Object visit(Subtract expression, Object extraData) {
+        Expression expr1 = visit(expression.getExpression1(), extraData);
+        Expression expr2 = visit(expression.getExpression2(), extraData);
+        Subtract result = getFactory(extraData).subtract(expr1, expr2);
+        if (expr1 instanceof Literal && expr2 instanceof Literal) {
+            return getFactory(extraData).literal(result.evaluate(null));
+        }
+        return result;
+    }
+
+    @Override
+    public Object visit(Multiply expression, Object extraData) {
+        Expression expr1 = visit(expression.getExpression1(), extraData);
+        Expression expr2 = visit(expression.getExpression2(), extraData);
+        Multiply result = getFactory(extraData).multiply(expr1, expr2);
+        if (expr1 instanceof Literal && expr2 instanceof Literal) {
+            return getFactory(extraData).literal(result.evaluate(null));
+        }
+        return result;
     }
 
     public boolean isRangeSimplicationEnabled() {

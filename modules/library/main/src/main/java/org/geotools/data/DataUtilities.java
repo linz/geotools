@@ -50,7 +50,46 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.SerializationUtils;
-import org.geotools.data.DataAccessFactory.Param;
+import org.geotools.api.coverage.grid.GridCoverage;
+import org.geotools.api.data.DataAccess;
+import org.geotools.api.data.DataAccessFactory.Param;
+import org.geotools.api.data.DataSourceException;
+import org.geotools.api.data.DataStore;
+import org.geotools.api.data.FeatureLocking;
+import org.geotools.api.data.FeatureReader;
+import org.geotools.api.data.FeatureSource;
+import org.geotools.api.data.FeatureStore;
+import org.geotools.api.data.Query;
+import org.geotools.api.data.SimpleFeatureLocking;
+import org.geotools.api.data.SimpleFeatureReader;
+import org.geotools.api.data.SimpleFeatureSource;
+import org.geotools.api.data.SimpleFeatureStore;
+import org.geotools.api.feature.Feature;
+import org.geotools.api.feature.FeatureFactory;
+import org.geotools.api.feature.FeatureVisitor;
+import org.geotools.api.feature.IllegalAttributeException;
+import org.geotools.api.feature.Property;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.feature.type.AttributeDescriptor;
+import org.geotools.api.feature.type.AttributeType;
+import org.geotools.api.feature.type.FeatureType;
+import org.geotools.api.feature.type.GeometryDescriptor;
+import org.geotools.api.feature.type.GeometryType;
+import org.geotools.api.feature.type.Name;
+import org.geotools.api.feature.type.PropertyDescriptor;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.filter.FilterFactory;
+import org.geotools.api.filter.expression.Expression;
+import org.geotools.api.filter.expression.PropertyName;
+import org.geotools.api.filter.sort.SortBy;
+import org.geotools.api.filter.sort.SortOrder;
+import org.geotools.api.geometry.BoundingBox;
+import org.geotools.api.metadata.citation.Citation;
+import org.geotools.api.referencing.ReferenceIdentifier;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
+import org.geotools.api.style.UserLayer;
+import org.geotools.api.util.ProgressListener;
 import org.geotools.data.collection.CollectionFeatureSource;
 import org.geotools.data.collection.ListFeatureCollection;
 import org.geotools.data.collection.SpatialIndexFeatureCollection;
@@ -58,10 +97,6 @@ import org.geotools.data.collection.SpatialIndexFeatureSource;
 import org.geotools.data.collection.TreeSetFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
-import org.geotools.data.simple.SimpleFeatureLocking;
-import org.geotools.data.simple.SimpleFeatureReader;
-import org.geotools.data.simple.SimpleFeatureSource;
-import org.geotools.data.simple.SimpleFeatureStore;
 import org.geotools.data.util.NullProgressListener;
 import org.geotools.data.view.DefaultView;
 import org.geotools.factory.CommonFactoryFinder;
@@ -88,7 +123,6 @@ import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.geometry.jts.WKTReader2;
 import org.geotools.metadata.iso.citation.Citations;
 import org.geotools.referencing.CRS;
-import org.geotools.styling.UserLayer;
 import org.geotools.util.Converters;
 import org.geotools.util.Utilities;
 import org.geotools.util.factory.Hints;
@@ -103,32 +137,6 @@ import org.locationtech.jts.geom.MultiPoint;
 import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
-import org.opengis.coverage.grid.GridCoverage;
-import org.opengis.feature.Feature;
-import org.opengis.feature.FeatureFactory;
-import org.opengis.feature.FeatureVisitor;
-import org.opengis.feature.IllegalAttributeException;
-import org.opengis.feature.Property;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.feature.type.AttributeDescriptor;
-import org.opengis.feature.type.AttributeType;
-import org.opengis.feature.type.FeatureType;
-import org.opengis.feature.type.GeometryDescriptor;
-import org.opengis.feature.type.GeometryType;
-import org.opengis.feature.type.Name;
-import org.opengis.feature.type.PropertyDescriptor;
-import org.opengis.filter.Filter;
-import org.opengis.filter.FilterFactory2;
-import org.opengis.filter.expression.Expression;
-import org.opengis.filter.expression.PropertyName;
-import org.opengis.filter.sort.SortBy;
-import org.opengis.filter.sort.SortOrder;
-import org.opengis.geometry.BoundingBox;
-import org.opengis.metadata.citation.Citation;
-import org.opengis.referencing.ReferenceIdentifier;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
-import org.opengis.util.ProgressListener;
 
 /**
  * Utility functions for use with GeoTools with data classes.
@@ -194,13 +202,13 @@ import org.opengis.util.ProgressListener;
  * @author Jody Garnett, Refractions Research
  */
 public class DataUtilities {
-    /** Typemap used by {@link #createType(String, String)} methods */
+    /** Type map used by {@link #createType(String, String)} methods */
     static Map<String, Class> typeMap = new HashMap<>();
 
     /** Reverse type map used by {@link #encodeType(FeatureType)} */
     static Map<Class, String> typeEncode = new HashMap<>();
 
-    static FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2();
+    static FilterFactory ff = CommonFactoryFinder.getFilterFactory();
 
     static {
         typeEncode.put(String.class, "String");
@@ -1844,17 +1852,21 @@ public class DataUtilities {
      *
      *     <ul>
      *       <li><code>nillable</code>
-     *       <li><code>srid=<#></code>
+     *       <li><code>authority=text</code>
+     *       <li><code>srid=number</code>
      *     </ul>
      *
      * <li>You may indicate the default Geometry with an astrix: "*geom:Geometry".
-     * <li>You may also indicate the srid (used to look up a EPSG code): "*point:Point:3226
+     * <li>You may also indicate the srid (used to look up a EPSG code): "*point:Point:3226"
+     * <li>The CRS authority can be specified using the <code>authority</code> hint, if it's not
+     *     EPSG (the default): "*point:Point:authority=IAU;srid=49900"
      *
      *     <p>Examples:
      *
      *     <ul>
      *       <li><code>name:"",age:0,geom:Geometry,centroid:Point,url:java.io.URL"</code>
      *       <li><code>id:String,polygonProperty:Polygon:srid=32615</code>
+     *       <li><code>id:String,polygonProperty:Polygon:authority=IAU;srid=1000</code>
      *       <li><code>identifier:UUID,location:Point,*area:MultiPolygon,created:Date</code>
      *       <li><code>uuid:UUID,name:String,description:String,time:java.sql.Timestamp</code>
      *     </ul>
@@ -1934,9 +1946,19 @@ public class DataUtilities {
             buf.append(typeMap(type.getType().getBinding()));
             if (type instanceof GeometryDescriptor) {
                 GeometryDescriptor gd = (GeometryDescriptor) type;
-                int srid = toSRID(gd.getCoordinateReferenceSystem());
-                if (srid != -1) {
-                    buf.append(":srid=" + srid);
+                Map.Entry<Citation, Integer> code = lookupCode(gd.getCoordinateReferenceSystem());
+                if (code != null) {
+                    Citation authority = code.getKey();
+                    Integer srid = code.getValue();
+                    if (authority == null
+                            || authority.getIdentifiers().isEmpty()
+                            || isEPSG(authority)) {
+                        buf.append(":srid=" + srid);
+                    } else {
+                        String authorityCode =
+                                authority.getIdentifiers().iterator().next().getCode();
+                        buf.append(":authority=" + authorityCode + ";srid=" + srid);
+                    }
                 }
             }
             buf.append(",");
@@ -1944,29 +1966,41 @@ public class DataUtilities {
         buf.delete(buf.length() - 1, buf.length()); // remove last ","
         return buf.toString();
     }
+
+    private static boolean isEPSG(Citation authority) {
+        // straightforward but does not always work
+        if (Citations.EPSG.equals(authority)) return true;
+        // a bit more laborious but should work
+        return authority.getIdentifiers().stream().anyMatch(id -> id.getCode().equals("EPSG"));
+    }
+
     /**
      * Quickly review provided crs checking for an "EPSG:SRID" reference identifier.
      *
      * <p>
      *
      * @see CRS#lookupEpsgCode(CoordinateReferenceSystem, boolean) for full search
-     * @return srid or -1 if not found
+     * @return an authority/srid pair, or null if not found
      */
-    private static int toSRID(CoordinateReferenceSystem crs) {
-        if (crs == null || crs.getIdentifiers() == null) {
-            return -1; // not found
+    private static Map.Entry<Citation, Integer> lookupCode(CoordinateReferenceSystem crs) {
+        Set<ReferenceIdentifier> identifiers;
+        if (crs == null || (identifiers = crs.getIdentifiers()) == null || identifiers.isEmpty()) {
+            return null; // not found
         }
-        for (ReferenceIdentifier id : crs.getIdentifiers()) {
+        // search for EPSG:#### code, if there is one
+        for (ReferenceIdentifier id : identifiers) {
             Citation authority = id.getAuthority();
             if (authority != null && authority.getTitle().equals(Citations.EPSG.getTitle())) {
                 try {
-                    return Integer.parseInt(id.getCode());
+                    return Map.entry(authority, Integer.parseInt(id.getCode()));
                 } catch (NumberFormatException nanException) {
                     continue;
                 }
             }
         }
-        return -1;
+        // otherwise pick the first authority available
+        ReferenceIdentifier id = identifiers.iterator().next();
+        return Map.entry(id.getAuthority(), Integer.parseInt(id.getCode()));
     }
 
     /**
@@ -2569,6 +2603,8 @@ public class DataUtilities {
             boolean nillable = true;
             CoordinateReferenceSystem crs = null;
 
+            int srid = -1;
+            String authority = "EPSG";
             if (hint != null) {
                 StringTokenizer st = new StringTokenizer(hint, ";");
                 while (st.hasMoreTokens()) {
@@ -2581,17 +2617,22 @@ public class DataUtilities {
                     if (h.equals("nillable")) {
                         nillable = true;
                     }
+                    if (h.startsWith("authority=")) {
+                        authority = h.split("=")[1];
+                    }
                     // spatial reference identifier
                     if (h.startsWith("srid=")) {
-                        String srid = h.split("=")[1];
-                        Integer.parseInt(srid);
-                        try {
-                            crs = CRS.decode("EPSG:" + srid);
-                        } catch (Exception e) {
-                            String msg = "Error decoding srs: " + srid;
-                            throw new SchemaException(msg, e);
-                        }
+                        String value = h.split("=")[1];
+                        srid = Integer.parseInt(value);
                     }
+                }
+            }
+            if (srid != -1) {
+                try {
+                    crs = CRS.decode(authority + ":" + srid);
+                } catch (Exception e) {
+                    String msg = "Error decoding srs: " + srid;
+                    throw new SchemaException(msg, e);
                 }
             }
 

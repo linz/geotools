@@ -36,6 +36,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import org.geotools.TestData;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
 import org.geotools.data.DataUtilities;
 import org.geotools.data.store.EmptyFeatureCollection;
 import org.geotools.feature.SchemaException;
@@ -50,8 +52,6 @@ import org.junit.runners.Parameterized;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.feature.simple.SimpleFeatureType;
 
 /**
  * Informal test used to document expected functionality for workshop.
@@ -131,7 +131,7 @@ public class GeoJSONWriteTest {
         out = new ByteArrayOutputStream();
         writer = new GeoJSONWriter(out);
         writer.write(feature);
-        assertTrue("Incorrect number of decimals", out.toString().contains("[0.1235,1.2346]"));
+        assertTrue("Incorrect number of decimals", out.toString().contains("[0.123457,1.234568]"));
         out.close();
         writer.close();
         out = new ByteArrayOutputStream();
@@ -163,7 +163,7 @@ public class GeoJSONWriteTest {
 
         assertTrue(
                 "missing bbox in " + out.toString(),
-                out.toString().contains("\"bbox\":[-7.556,49.7687,-7.5536,49.7724]"));
+                out.toString().contains("\"bbox\":[-7.555983,49.768664,-7.553629,49.772378]"));
         out.close();
         writer.close();
     }

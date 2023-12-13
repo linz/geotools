@@ -22,7 +22,13 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.geotools.data.FeatureReader;
+import org.geotools.api.data.FeatureReader;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.feature.type.AttributeDescriptor;
+import org.geotools.api.feature.type.GeometryDescriptor;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.referencing.operation.TransformException;
 import org.geotools.data.shapefile.dbf.DbaseFileHeader;
 import org.geotools.data.shapefile.dbf.DbaseFileReader;
 import org.geotools.data.shapefile.dbf.DbaseFileReader.Row;
@@ -38,12 +44,6 @@ import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.feature.type.AttributeDescriptor;
-import org.opengis.feature.type.GeometryDescriptor;
-import org.opengis.filter.Filter;
-import org.opengis.referencing.operation.TransformException;
 
 class ShapefileFeatureReader implements FeatureReader<SimpleFeatureType, SimpleFeature> {
 
@@ -163,10 +163,10 @@ class ShapefileFeatureReader implements FeatureReader<SimpleFeatureType, SimpleF
             return shp.hasNext();
         } else {
             boolean dbfHasNext = dbf.hasNext();
-            boolean shpHasNext = shp.hasNext();
+            boolean shpHasNext = shp == null || shp.hasNext();
             if (dbfHasNext && shpHasNext) {
                 return true;
-            } else if (dbfHasNext || shpHasNext) {
+            } else if (shp != null && (dbfHasNext || shpHasNext)) {
                 throw new IOException(((shpHasNext) ? "Shp" : "Dbf") + " has extra record");
             } else {
                 return false;
@@ -177,9 +177,10 @@ class ShapefileFeatureReader implements FeatureReader<SimpleFeatureType, SimpleF
     @Override
     public boolean hasNext() throws IOException {
         while (nextFeature == null && filesHaveMore()) {
-            Record record = shp.nextRecord();
+            Record record = shp != null ? shp.nextRecord() : null;
 
-            Geometry geometry = getGeometry(record);
+            final Geometry geometry =
+                    record != null ? getGeometry(record) : SKIP.getFactory().createEmpty(0);
             if (geometry != SKIP) {
                 // also grab the dbf row
                 Row row;
@@ -192,7 +193,10 @@ class ShapefileFeatureReader implements FeatureReader<SimpleFeatureType, SimpleF
                     row = null;
                 }
 
-                nextFeature = buildFeature(record.number, geometry, row, record.envelope());
+                final int number = record != null ? record.number : 0;
+                final Envelope envelope =
+                        record != null ? record.envelope() : geometry.getEnvelopeInternal();
+                nextFeature = buildFeature(number, geometry, row, envelope);
             } else {
                 if (dbf != null) {
                     dbf.skip();

@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.text.MessageFormat;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Locale;
@@ -30,8 +31,13 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
+import org.geotools.api.metadata.Identifier;
+import org.geotools.api.metadata.citation.Citation;
+import org.geotools.api.referencing.FactoryException;
+import org.geotools.api.referencing.IdentifiedObject;
+import org.geotools.api.referencing.crs.CRSAuthorityFactory;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
 import org.geotools.metadata.i18n.ErrorKeys;
-import org.geotools.metadata.i18n.Errors;
 import org.geotools.metadata.i18n.LoggingKeys;
 import org.geotools.metadata.i18n.Loggings;
 import org.geotools.metadata.i18n.Vocabulary;
@@ -49,12 +55,6 @@ import org.geotools.util.IndentedLineWriter;
 import org.geotools.util.TableWriter;
 import org.geotools.util.factory.Hints;
 import org.geotools.util.logging.Logging;
-import org.opengis.metadata.Identifier;
-import org.opengis.metadata.citation.Citation;
-import org.opengis.referencing.FactoryException;
-import org.opengis.referencing.IdentifiedObject;
-import org.opengis.referencing.crs.CRSAuthorityFactory;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
 /**
  * Authority factory for {@linkplain CoordinateReferenceSystem Coordinate Reference Systems} beyong
@@ -151,7 +151,7 @@ public class FactoryUsingWKT extends DeferredAuthorityFactory implements CRSAuth
         } else {
             directory = null;
         }
-        hints.put(Hints.CRS_AUTHORITY_EXTRA_DIRECTORY, directory);
+        if (directory != null) hints.put(Hints.CRS_AUTHORITY_EXTRA_DIRECTORY, directory);
         // Disposes the cached property file after at least 15 minutes of inactivity.
         setTimeout(15 * 60 * 1000L);
     }
@@ -251,7 +251,7 @@ public class FactoryUsingWKT extends DeferredAuthorityFactory implements CRSAuth
             URL url = getDefinitionsURL();
             if (url == null) {
                 throw new FactoryNotFoundException(
-                        Errors.format(ErrorKeys.FILE_DOES_NOT_EXIST_$1, FILENAME));
+                        MessageFormat.format(ErrorKeys.FILE_DOES_NOT_EXIST_$1, FILENAME));
             }
             final Iterator<? extends Identifier> ids = getAuthority().getIdentifiers().iterator();
             final String authority = ids.hasNext() ? ids.next().getCode() : "EPSG";
@@ -265,7 +265,8 @@ public class FactoryUsingWKT extends DeferredAuthorityFactory implements CRSAuth
             LOGGER.log(record);
             return new PropertyAuthorityFactory(factories, getAuthorities(), url);
         } catch (IOException exception) {
-            throw new FactoryException(Errors.format(ErrorKeys.CANT_READ_$1, FILENAME), exception);
+            throw new FactoryException(
+                    MessageFormat.format(ErrorKeys.CANT_READ_$1, FILENAME), exception);
         }
     }
 
@@ -274,6 +275,13 @@ public class FactoryUsingWKT extends DeferredAuthorityFactory implements CRSAuth
         return type.cast(
                 ReferencingFactoryFinder.getCRSAuthorityFactory(
                         "EPSG", new Hints(Hints.CRS_AUTHORITY_FACTORY, type)));
+    }
+
+    protected static final <T extends AbstractAuthorityFactory> T getFactory(
+            String authority, final Class<T> type) {
+        return type.cast(
+                ReferencingFactoryFinder.getCRSAuthorityFactory(
+                        authority, new Hints(Hints.CRS_AUTHORITY_FACTORY, type)));
     }
 
     /**

@@ -23,14 +23,24 @@ import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.geotools.api.data.FeatureReader;
+import org.geotools.api.data.Query;
+import org.geotools.api.data.QueryCapabilities;
+import org.geotools.api.feature.FeatureVisitor;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.filter.expression.Expression;
+import org.geotools.api.filter.expression.PropertyName;
+import org.geotools.api.filter.sort.SortBy;
+import org.geotools.api.filter.sort.SortOrder;
 import org.geotools.data.DataUtilities;
-import org.geotools.data.FeatureReader;
 import org.geotools.data.FilteringFeatureReader;
-import org.geotools.data.Query;
-import org.geotools.data.QueryCapabilities;
 import org.geotools.data.ReTypeFeatureReader;
 import org.geotools.data.store.ContentEntry;
 import org.geotools.data.store.ContentFeatureSource;
@@ -41,14 +51,6 @@ import org.geotools.filter.FilterCapabilities;
 import org.geotools.filter.SortByImpl;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.util.logging.Logging;
-import org.opengis.feature.FeatureVisitor;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.filter.Filter;
-import org.opengis.filter.expression.Expression;
-import org.opengis.filter.expression.PropertyName;
-import org.opengis.filter.sort.SortBy;
-import org.opengis.filter.sort.SortOrder;
 
 public class MongoFeatureSource extends ContentFeatureSource {
 
@@ -327,9 +329,25 @@ public class MongoFeatureSource extends ContentFeatureSource {
 
     Filter[] splitFilter(Filter f) {
         FilterCapabilities filterCapabilities = getDataStore().getFilterCapabilities();
-        MongoFilterSplitter splitter = new MongoFilterSplitter(filterCapabilities, null, null);
+        MongoFilterSplitter splitter =
+                new MongoFilterSplitter(
+                        filterCapabilities,
+                        null,
+                        null,
+                        new MongoCollectionMeta(getIndexesInfoMap()));
         f.accept(splitter, null);
         return new Filter[] {splitter.getFilterPre(), splitter.getFilterPost()};
+    }
+
+    private Map<String, String> getIndexesInfoMap() {
+        Map<String, String> indexes = new HashMap<>();
+        for (DBObject object : collection.getIndexInfo()) {
+            BasicDBObject key = (BasicDBObject) object.get("key");
+            for (Map.Entry entry : key.entrySet()) {
+                indexes.put(entry.getKey().toString(), entry.getValue().toString());
+            }
+        }
+        return indexes;
     }
 
     @Override

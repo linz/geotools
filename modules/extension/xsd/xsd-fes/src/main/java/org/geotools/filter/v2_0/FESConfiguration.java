@@ -17,6 +17,7 @@
 package org.geotools.filter.v2_0;
 
 import net.opengis.fes20.Fes20Factory;
+import org.geotools.api.filter.FilterFactory;
 import org.geotools.filter.FilterFactoryImpl;
 import org.geotools.filter.v1_1.SortOrderTypeBinding;
 import org.geotools.filter.v2_0.bindings.AfterBinding;
@@ -55,6 +56,7 @@ import org.geotools.filter.v2_0.bindings.GeometryOperandsType_GeometryOperandBin
 import org.geotools.filter.v2_0.bindings.Id_CapabilitiesTypeBinding;
 import org.geotools.filter.v2_0.bindings.IntersectsBinding;
 import org.geotools.filter.v2_0.bindings.LiteralBinding;
+import org.geotools.filter.v2_0.bindings.LowerBoundaryTypeBinding;
 import org.geotools.filter.v2_0.bindings.MatchActionBinding;
 import org.geotools.filter.v2_0.bindings.MeasureTypeBinding;
 import org.geotools.filter.v2_0.bindings.MeetsBinding;
@@ -84,6 +86,7 @@ import org.geotools.filter.v2_0.bindings.TContainsBinding;
 import org.geotools.filter.v2_0.bindings.TEqualsBinding;
 import org.geotools.filter.v2_0.bindings.TOverlapsBinding;
 import org.geotools.filter.v2_0.bindings.TouchesBinding;
+import org.geotools.filter.v2_0.bindings.UpperBoundaryTypeBinding;
 import org.geotools.filter.v2_0.bindings.ValueReferenceBinding;
 import org.geotools.filter.v2_0.bindings.VersionTypeBinding;
 import org.geotools.filter.v2_0.bindings.WithinBinding;
@@ -91,7 +94,6 @@ import org.geotools.filter.v2_0.bindings._LogicalOperatorsBinding;
 import org.geotools.gml3.v3_2.GMLConfiguration;
 import org.geotools.ows.v1_1.OWSConfiguration;
 import org.geotools.xsd.Configuration;
-import org.opengis.filter.FilterFactory;
 import org.picocontainer.MutablePicoContainer;
 
 /**
@@ -178,7 +180,8 @@ public class FESConfiguration extends Configuration {
         //
         // container.registerComponentImplementation(FES.LogicOpsType,LogicOpsTypeBinding.class);
         //
-        // container.registerComponentImplementation(FES.LowerBoundaryType,LowerBoundaryTypeBinding.class);
+        container.registerComponentImplementation(
+                FES.LowerBoundaryType, LowerBoundaryTypeBinding.class);
         //
         // container.registerComponentImplementation(FES.MatchActionType,MatchActionTypeBinding.class);
 
@@ -225,7 +228,8 @@ public class FESConfiguration extends Configuration {
         //
         // container.registerComponentImplementation(FES.UnaryLogicOpType,UnaryLogicOpTypeBinding.class);
         //
-        // container.registerComponentImplementation(FES.UpperBoundaryType,UpperBoundaryTypeBinding.class);
+        container.registerComponentImplementation(
+                FES.UpperBoundaryType, UpperBoundaryTypeBinding.class);
         //
         // container.registerComponentImplementation(FES.VersionActionTokens,VersionActionTokensBinding.class);
         container.registerComponentImplementation(FES.VersionType, VersionTypeBinding.class);

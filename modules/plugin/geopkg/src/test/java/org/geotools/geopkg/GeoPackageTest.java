@@ -41,6 +41,7 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.logging.Level;
@@ -48,23 +49,34 @@ import javax.imageio.ImageIO;
 import javax.media.jai.PlanarImage;
 import org.apache.commons.io.FileUtils;
 import org.geotools.TestData;
+import org.geotools.api.data.SimpleFeatureReader;
+import org.geotools.api.data.SimpleFeatureStore;
+import org.geotools.api.data.SimpleFeatureWriter;
+import org.geotools.api.data.Transaction;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.feature.type.AttributeDescriptor;
+import org.geotools.api.feature.type.PropertyDescriptor;
+import org.geotools.api.filter.FilterFactory;
+import org.geotools.api.filter.identity.Identifier;
+import org.geotools.api.parameter.GeneralParameterValue;
+import org.geotools.api.referencing.FactoryException;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
 import org.geotools.coverage.grid.GridCoverage2D;
 import org.geotools.coverage.grid.GridEnvelope2D;
 import org.geotools.coverage.grid.GridGeometry2D;
 import org.geotools.coverage.grid.io.AbstractGridFormat;
 import org.geotools.data.DataUtilities;
 import org.geotools.data.DefaultTransaction;
-import org.geotools.data.Transaction;
 import org.geotools.data.memory.MemoryFeatureCollection;
 import org.geotools.data.shapefile.ShapefileDataStore;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
-import org.geotools.data.simple.SimpleFeatureReader;
-import org.geotools.data.simple.SimpleFeatureStore;
-import org.geotools.data.simple.SimpleFeatureWriter;
+import org.geotools.data.store.ContentFeatureCollection;
 import org.geotools.data.store.ContentFeatureSource;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.feature.FeatureTypes;
+import org.geotools.feature.collection.DecoratingSimpleFeatureIterator;
 import org.geotools.feature.simple.SimpleFeatureBuilder;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.geometry.jts.Geometries;
@@ -91,15 +103,6 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.PrecisionModel;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.feature.type.AttributeDescriptor;
-import org.opengis.feature.type.PropertyDescriptor;
-import org.opengis.filter.FilterFactory;
-import org.opengis.filter.identity.Identifier;
-import org.opengis.parameter.GeneralParameterValue;
-import org.opengis.referencing.FactoryException;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.sqlite.SQLiteConfig;
 
 public class GeoPackageTest {
@@ -172,7 +175,7 @@ public class GeoPackageTest {
     void assertTableExists(String table) throws Exception {
         try (Connection cx = geopkg.getDataSource().getConnection();
                 Statement st = cx.createStatement()) {
-            st.execute(String.format("SELECT count(*) FROM %s;", table));
+            st.execute(String.format("SELECT count(*) FROM \"%s\";", table));
         } catch (Exception e) {
             fail(e.getMessage());
         }
@@ -248,7 +251,7 @@ public class GeoPackageTest {
             try (PreparedStatement ps = psb.log(Level.FINE).statement()) {
                 try (ResultSet rs = ps.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals("epsg:2000", rs.getString(1));
+                    assertEquals("EPSG:2000", rs.getString(1));
                 }
             }
         } catch (Exception e) {
@@ -650,6 +653,29 @@ public class GeoPackageTest {
     }
 
     @Test
+    public void testSpatialIndexNullGeometries() throws Exception {
+        ShapefileDataStore shp = new ShapefileDataStore(setUpShapefile());
+
+        // insert half of the points with null geometry
+        FeatureEntry entry = new FeatureEntry();
+        ContentFeatureCollection features = shp.getFeatureSource().getFeatures();
+        try (SimpleFeatureIterator fi = features.features();
+                SimpleFeatureIterator fiNulls = new OddEvenNullIterator(fi, features)) {
+            geopkg.add(entry, DataUtilities.collection(fiNulls));
+        }
+
+        assertFalse(geopkg.hasSpatialIndex(entry));
+
+        // would have gone NPE before the fix here
+        geopkg.createSpatialIndex(entry);
+
+        assertTrue(geopkg.hasSpatialIndex(entry));
+
+        Set<Identifier> ids = geopkg.searchSpatialIndex(entry, 0d, 0d, 1e7, 1e7);
+        assertEquals(features.size() / 2, ids.size());
+    }
+
+    @Test
     public void testSpatialIndexWithSpecificTypeName() throws Exception {
         List<String> featureTypeNamesToTest =
                 Arrays.asList(
@@ -698,14 +724,18 @@ public class GeoPackageTest {
         return builder.buildFeatureType();
     }
 
-    @Test
-    public void testCreateTileEntry() throws Exception {
+    private TileEntry createTileEntry(String tableName) {
         TileEntry e = new TileEntry();
-        e.setTableName("foo");
+        e.setTableName(tableName);
         e.setBounds(new ReferencedEnvelope(-180, 180, -90, 90, DefaultGeographicCRS.WGS84));
         e.getTileMatricies().add(new TileMatrix(0, 1, 1, 256, 256, 0.1, 0.1));
         e.getTileMatricies().add(new TileMatrix(1, 2, 2, 256, 256, 0.1, 0.1));
+        return e;
+    }
 
+    @Test
+    public void testCreateTileEntry() throws Exception {
+        TileEntry e = createTileEntry("foo");
         geopkg.create(e);
         assertTileEntry(e);
 
@@ -723,20 +753,18 @@ public class GeoPackageTest {
         try (TileReader r = geopkg.reader(e, null, null, null, null, null, null)) {
             assertTiles(tiles, r);
         }
+
+        // check tile bounds
+        assertEquals(0, geopkg.getTileBound(e, 0, true, true));
+        assertEquals(1, geopkg.getTileBound(e, 1, true, true));
+        assertEquals(0, geopkg.getTileBound(e, 2, true, true));
     }
 
     @Test
     public void testIndependentTileMatrix() throws Exception {
-        TileEntry e = new TileEntry();
-        e.setTableName("foo");
-        e.setBounds(new ReferencedEnvelope(-10, 10, -10, 10, DefaultGeographicCRS.WGS84));
-        e.setTileMatrixSetBounds(
-                new ReferencedEnvelope(-180, 180, -90, 90, DefaultGeographicCRS.WGS84));
-        e.getTileMatricies().add(new TileMatrix(0, 1, 1, 256, 256, 0.1, 0.1));
-        e.getTileMatricies().add(new TileMatrix(1, 2, 2, 256, 256, 0.1, 0.1));
-
+        TileEntry e = createTileEntry("foo");
+        e.setTileMatrixSetBounds(e.getBounds());
         geopkg.create(e);
-
         assertContentEntry(e);
 
         try (Connection cx = geopkg.getDataSource().getConnection();
@@ -1142,6 +1170,44 @@ public class GeoPackageTest {
         assertEquals(range, constraint);
     }
 
+    private void assertTileEntryWithName(String name) throws Exception {
+        TileEntry tileEntry = createTileEntry(name);
+        geopkg.create(tileEntry);
+        assertTableExists(name);
+        assertTileEntry(tileEntry);
+    }
+
+    private void assertFeatureEntryWithName(String name) throws Exception {
+        FeatureEntry featureEntry = new FeatureEntry();
+        featureEntry.setTableName(name);
+        featureEntry.setDataType(Entry.DataType.Feature);
+        featureEntry.setBounds(
+                new ReferencedEnvelope(-180, 180, -90, 90, CRS.decode("EPSG:2000", true)));
+        featureEntry.setSrid(2000);
+
+        SimpleFeatureType schema =
+                DataUtilities.createType(name + "_schema", "the_geom:Geometry,name:String");
+        SimpleFeature feature =
+                SimpleFeatureBuilder.build(schema, new Object[] {null, name}, name + ".1");
+        MemoryFeatureCollection features = new MemoryFeatureCollection(schema);
+        features.add(feature);
+
+        geopkg.add(featureEntry, features);
+        geopkg.createSpatialIndex(featureEntry);
+        assertTableExists(name);
+        assertTableExists(name + "_schema");
+        assertTrue("Spatial index exists", geopkg.hasSpatialIndex(featureEntry));
+    }
+
+    @Test
+    public void testTableNaming() throws Exception {
+        // Test for inadvisable-but-supported entry names which carry over into
+        // table and index names that are required to be suitably quoted
+        String entryName = "with-hyphens and spaces";
+        assertTileEntryWithName(entryName);
+        assertFeatureEntryWithName(entryName);
+    }
+
     private void createBugSites() throws Exception {
         // create a geopackage from a shapefile
         ShapefileDataStore shp = new ShapefileDataStore(setUpShapefile());
@@ -1228,5 +1294,29 @@ public class GeoPackageTest {
 
         assertEquals(coordinate.x, coordinateYX.y, 0);
         assertEquals(coordinate.y, coordinateYX.x, 0);
+    }
+
+    /**
+     * Iterate over the features, creating clones that have null geometries for odd entries and
+     * non-null geometries for even entries
+     */
+    private static class OddEvenNullIterator extends DecoratingSimpleFeatureIterator {
+        private final ContentFeatureCollection features;
+        int counter;
+
+        public OddEvenNullIterator(SimpleFeatureIterator fi, ContentFeatureCollection features) {
+            super(fi);
+            this.features = features;
+            counter = 0;
+        }
+
+        @Override
+        public SimpleFeature next() throws NoSuchElementException {
+            SimpleFeatureBuilder fb = new SimpleFeatureBuilder(features.getSchema());
+            SimpleFeature feature = super.next();
+            fb.init(feature);
+            if (counter++ % 2 == 0) fb.set("the_geom", null);
+            return fb.buildFeature(feature.getID());
+        }
     }
 }

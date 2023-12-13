@@ -32,43 +32,43 @@ import java.awt.Color;
 import java.io.IOException;
 import java.util.List;
 import javax.xml.transform.TransformerException;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.filter.expression.Expression;
+import org.geotools.api.filter.expression.Function;
+import org.geotools.api.filter.expression.Literal;
+import org.geotools.api.style.AnchorPoint;
+import org.geotools.api.style.ColorMap;
+import org.geotools.api.style.ContrastMethod;
+import org.geotools.api.style.Displacement;
+import org.geotools.api.style.ExternalGraphic;
+import org.geotools.api.style.FeatureTypeStyle;
+import org.geotools.api.style.Fill;
+import org.geotools.api.style.Font;
+import org.geotools.api.style.Graphic;
+import org.geotools.api.style.GraphicFill;
+import org.geotools.api.style.Halo;
+import org.geotools.api.style.LinePlacement;
+import org.geotools.api.style.LineSymbolizer;
+import org.geotools.api.style.Mark;
+import org.geotools.api.style.PointPlacement;
+import org.geotools.api.style.PointSymbolizer;
+import org.geotools.api.style.PolygonSymbolizer;
+import org.geotools.api.style.RasterSymbolizer;
+import org.geotools.api.style.Rule;
+import org.geotools.api.style.SelectedChannelType;
+import org.geotools.api.style.Stroke;
+import org.geotools.api.style.Style;
+import org.geotools.api.style.Symbolizer;
+import org.geotools.api.style.TextSymbolizer;
 import org.geotools.filter.function.EnvFunction;
 import org.geotools.filter.function.color.DarkenFunction;
 import org.geotools.filter.function.color.SaturateFunction;
 import org.geotools.filter.text.cql2.CQLException;
 import org.geotools.filter.text.ecql.ECQL;
-import org.geotools.styling.AnchorPoint;
-import org.geotools.styling.ColorMap;
-import org.geotools.styling.ExternalGraphic;
-import org.geotools.styling.Fill;
-import org.geotools.styling.Font;
-import org.geotools.styling.Graphic;
-import org.geotools.styling.Halo;
-import org.geotools.styling.LinePlacement;
-import org.geotools.styling.LineSymbolizer;
-import org.geotools.styling.PointPlacement;
-import org.geotools.styling.PointSymbolizer;
-import org.geotools.styling.PolygonSymbolizer;
-import org.geotools.styling.RasterSymbolizer;
-import org.geotools.styling.SelectedChannelType;
-import org.geotools.styling.Stroke;
-import org.geotools.styling.TextSymbolizer;
-import org.geotools.styling.TextSymbolizer2;
+import org.geotools.util.Converters;
 import org.geotools.xml.styling.SLDTransformer;
 import org.hamcrest.CoreMatchers;
 import org.junit.Test;
-import org.opengis.filter.Filter;
-import org.opengis.filter.expression.Expression;
-import org.opengis.filter.expression.Function;
-import org.opengis.filter.expression.Literal;
-import org.opengis.style.ContrastMethod;
-import org.opengis.style.Displacement;
-import org.opengis.style.FeatureTypeStyle;
-import org.opengis.style.GraphicFill;
-import org.opengis.style.Mark;
-import org.opengis.style.Rule;
-import org.opengis.style.Style;
-import org.opengis.style.Symbolizer;
 import org.parboiled.errors.ParserRuntimeException;
 
 public class TranslatorSyntheticTest extends CssBaseTest {
@@ -90,7 +90,7 @@ public class TranslatorSyntheticTest extends CssBaseTest {
     }
 
     private void assertVendorOption(
-            String expectedValue, String name, org.geotools.styling.Symbolizer ps) {
+            String expectedValue, String name, org.geotools.api.style.Symbolizer ps) {
         assertEquals(expectedValue, ps.getOptions().get(name));
     }
 
@@ -146,7 +146,7 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         Rule rule = assertSingleRule(style);
         PolygonSymbolizer ps = assertSingleSymbolizer(rule, PolygonSymbolizer.class);
         Fill fill = ps.getFill();
-        GraphicFill gf = fill.getGraphicFill();
+        GraphicFill gf = (GraphicFill) fill.getGraphicFill();
         assertEquals(1, gf.graphicalSymbols().size());
         Mark mark = (Mark) gf.graphicalSymbols().get(0);
         assertLiteral("circle", mark.getWellKnownName());
@@ -223,7 +223,7 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         Rule rule = assertSingleRule(style);
         PolygonSymbolizer ps = assertSingleSymbolizer(rule, PolygonSymbolizer.class);
         Fill fill = ps.getFill();
-        GraphicFill gf = fill.getGraphicFill();
+        GraphicFill gf = (GraphicFill) fill.getGraphicFill();
         assertEquals(1, gf.graphicalSymbols().size());
         ExternalGraphic eg = (ExternalGraphic) gf.graphicalSymbols().get(0);
         assertEquals("test.svg", eg.getURI());
@@ -523,7 +523,7 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         String css = "* { label: 'test'; shield: symbol(square);} :shield {fill:black;}";
         Style style = translate(css);
         Rule rule = assertSingleRule(style);
-        TextSymbolizer2 ts = assertSingleSymbolizer(rule, TextSymbolizer2.class);
+        TextSymbolizer ts = assertSingleSymbolizer(rule, TextSymbolizer.class);
         assertLiteral("test", ts.getLabel());
         Graphic g = ts.getGraphic();
         assertEquals(1, g.graphicalSymbols().size());
@@ -537,7 +537,7 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         String css = "* { label: 'test'; -gt-label-priority: [priority];}";
         Style style = translate(css);
         Rule rule = assertSingleRule(style);
-        TextSymbolizer2 ts = assertSingleSymbolizer(rule, TextSymbolizer2.class);
+        TextSymbolizer ts = assertSingleSymbolizer(rule, TextSymbolizer.class);
         assertLiteral("test", ts.getLabel());
         assertExpression("priority", ts.getPriority());
     }
@@ -547,7 +547,7 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         String css = "* { label: 'test'; -gt-label-follow-line: true;}";
         Style style = translate(css);
         Rule rule = assertSingleRule(style);
-        TextSymbolizer2 ts = assertSingleSymbolizer(rule, TextSymbolizer2.class);
+        TextSymbolizer ts = assertSingleSymbolizer(rule, TextSymbolizer.class);
         assertLiteral("test", ts.getLabel());
         assertEquals("true", ts.getOptions().get("followLine"));
     }
@@ -557,7 +557,7 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         String css = "* { label: [att1]'\n('[att2]')';}";
         Style style = translate(css);
         Rule rule = assertSingleRule(style);
-        TextSymbolizer2 ts = assertSingleSymbolizer(rule, TextSymbolizer2.class);
+        TextSymbolizer ts = assertSingleSymbolizer(rule, TextSymbolizer.class);
         assertExpression("concatenate(att1, '\n(', att2, ')')", ts.getLabel());
     }
 
@@ -566,7 +566,7 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         String css = "* { label: 'test'; label-partials: true}";
         Style style = translate(css);
         Rule rule = assertSingleRule(style);
-        TextSymbolizer2 ts = assertSingleSymbolizer(rule, TextSymbolizer2.class);
+        TextSymbolizer ts = assertSingleSymbolizer(rule, TextSymbolizer.class);
         assertLiteral("test", ts.getLabel());
         assertEquals("true", ts.getOptions().get(TextSymbolizer.PARTIALS_KEY));
     }
@@ -576,7 +576,7 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         String css = "* { label: 'test'; label-displacement-mode: 'N,E,W,S'}";
         Style style = translate(css);
         Rule rule = assertSingleRule(style);
-        TextSymbolizer2 ts = assertSingleSymbolizer(rule, TextSymbolizer2.class);
+        TextSymbolizer ts = assertSingleSymbolizer(rule, TextSymbolizer.class);
         assertLiteral("test", ts.getLabel());
         assertEquals("N,E,W,S", ts.getOptions().get(TextSymbolizer.DISPLACEMENT_MODE_KEY));
     }
@@ -586,7 +586,7 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         String css = "* { label: 'test'; font-shrink-size-min: 5}";
         Style style = translate(css);
         Rule rule = assertSingleRule(style);
-        TextSymbolizer2 ts = assertSingleSymbolizer(rule, TextSymbolizer2.class);
+        TextSymbolizer ts = assertSingleSymbolizer(rule, TextSymbolizer.class);
         assertLiteral("test", ts.getLabel());
         assertEquals("5", ts.getOptions().get(TextSymbolizer.FONT_SHRINK_SIZE_MIN));
     }
@@ -682,6 +682,10 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         RasterSymbolizer rs = assertSingleSymbolizer(rule, RasterSymbolizer.class);
         ColorMap cm = rs.getColorMap();
         assertEquals(3, cm.getColorMapEntries().length);
+        checkBlackWhiteRedColorMap(cm);
+    }
+
+    private void checkBlackWhiteRedColorMap(ColorMap cm) {
         assertLiteral("#000000", cm.getColorMapEntry(0).getColor());
         assertLiteral("1.0", cm.getColorMapEntry(0).getOpacity());
         assertLiteral("100", cm.getColorMapEntry(0).getQuantity());
@@ -718,6 +722,48 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         // GeoServer specific vendor options
         assertEquals("add", rs.getOptions().get("labelInFeatureInfo"));
         assertEquals("name", rs.getOptions().get("labelAttributeName"));
+    }
+
+    @Test
+    public void rasterColorMapExtended() throws Exception {
+        String css =
+                "* { raster-channels: 'auto'; "
+                        + "raster-color-map: color-map-entry(black, 100) "
+                        + "color-map-entry(white, 1000) "
+                        + "color-map-entry(red, 10000, 0);"
+                        + "raster-color-map-extended: true}";
+        Style style = translate(css);
+        Rule rule = assertSingleRule(style);
+        RasterSymbolizer rs = assertSingleSymbolizer(rule, RasterSymbolizer.class);
+        ColorMap cm = rs.getColorMap();
+        assertEquals(3, cm.getColorMapEntries().length);
+        checkBlackWhiteRedColorMap(cm);
+        assertTrue(cm.getExtendedColors());
+    }
+
+    /** Automatically switch to extended colors if there are more than 255 colors */
+    @Test
+    public void rasterColorMapAutoExtend() throws Exception {
+        checkAutoExtend(10, false);
+        checkAutoExtend(255, false);
+        checkAutoExtend(256, true);
+        checkAutoExtend(500, true);
+    }
+
+    private void checkAutoExtend(int colorCount, boolean expectedExtended) {
+        StringBuilder sb = new StringBuilder("* { raster-channels: 'auto'; " + "raster-color-map:");
+        for (int i = 0; i < colorCount; i++) {
+            Color color = new Color((int) (Math.random() * 0x1000000)); // random color
+            String colorSpec = Converters.convert(color, String.class);
+            sb.append("color-map-entry(" + colorSpec + ", ").append(i).append(") ");
+        }
+        sb.append(";}");
+        Style style = translate(sb.toString());
+        Rule rule = assertSingleRule(style);
+        RasterSymbolizer rs = assertSingleSymbolizer(rule, RasterSymbolizer.class);
+        ColorMap cm = rs.getColorMap();
+        assertEquals(colorCount, cm.getColorMapEntries().length);
+        assertEquals(expectedExtended, cm.getExtendedColors());
     }
 
     @Test
@@ -842,8 +888,8 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         LineSymbolizer ls = assertSingleSymbolizer(rule, LineSymbolizer.class);
         assertEquals(0, ls.getOptions().size());
         // but in the feature type style
-        org.geotools.styling.FeatureTypeStyle fts =
-                (org.geotools.styling.FeatureTypeStyle) style.featureTypeStyles().get(0);
+        org.geotools.api.style.FeatureTypeStyle fts =
+                (org.geotools.api.style.FeatureTypeStyle) style.featureTypeStyles().get(0);
         assertEquals(2, fts.getOptions().size());
         assertEquals("multiply", fts.getOptions().get("composite"));
         assertNull(fts.getOptions().get("composite-base"));
@@ -859,8 +905,8 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         LineSymbolizer ls = assertSingleSymbolizer(rule, LineSymbolizer.class);
         assertEquals(0, ls.getOptions().size());
         // but in the feature type style
-        org.geotools.styling.FeatureTypeStyle fts =
-                (org.geotools.styling.FeatureTypeStyle) style.featureTypeStyles().get(0);
+        org.geotools.api.style.FeatureTypeStyle fts =
+                (org.geotools.api.style.FeatureTypeStyle) style.featureTypeStyles().get(0);
         assertEquals("true", fts.getOptions().get("composite-base"));
         assertNull(fts.getOptions().get("composite"));
     }
@@ -875,8 +921,8 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         LineSymbolizer ls = assertSingleSymbolizer(rule, LineSymbolizer.class);
         assertEquals(0, ls.getOptions().size());
         // but in the feature type style
-        org.geotools.styling.FeatureTypeStyle fts =
-                (org.geotools.styling.FeatureTypeStyle) style.featureTypeStyles().get(0);
+        org.geotools.api.style.FeatureTypeStyle fts =
+                (org.geotools.api.style.FeatureTypeStyle) style.featureTypeStyles().get(0);
         assertEquals("true", fts.getOptions().get("composite-base"));
         assertEquals("multiply", fts.getOptions().get("composite"));
     }
@@ -891,11 +937,11 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         LineSymbolizer ls = assertSingleSymbolizer(rule, LineSymbolizer.class);
         assertEquals(0, ls.getOptions().size());
         // but in the feature type style
-        org.geotools.styling.FeatureTypeStyle fts =
-                (org.geotools.styling.FeatureTypeStyle) style.featureTypeStyles().get(0);
+        org.geotools.api.style.FeatureTypeStyle fts =
+                (org.geotools.api.style.FeatureTypeStyle) style.featureTypeStyles().get(0);
         assertEquals(
                 "cat A, name D",
-                fts.getOptions().get(org.geotools.styling.FeatureTypeStyle.SORT_BY));
+                fts.getOptions().get(org.geotools.api.style.FeatureTypeStyle.SORT_BY));
     }
 
     @Test
@@ -908,14 +954,14 @@ public class TranslatorSyntheticTest extends CssBaseTest {
         LineSymbolizer ls = assertSingleSymbolizer(rule, LineSymbolizer.class);
         assertEquals(0, ls.getOptions().size());
         // but in the feature type style
-        org.geotools.styling.FeatureTypeStyle fts =
-                (org.geotools.styling.FeatureTypeStyle) style.featureTypeStyles().get(0);
+        org.geotools.api.style.FeatureTypeStyle fts =
+                (org.geotools.api.style.FeatureTypeStyle) style.featureTypeStyles().get(0);
         assertEquals(
                 "cat A, name D",
-                fts.getOptions().get((org.geotools.styling.FeatureTypeStyle.SORT_BY)));
+                fts.getOptions().get((org.geotools.api.style.FeatureTypeStyle.SORT_BY)));
         assertEquals(
                 "theGroup",
-                fts.getOptions().get(org.geotools.styling.FeatureTypeStyle.SORT_BY_GROUP));
+                fts.getOptions().get(org.geotools.api.style.FeatureTypeStyle.SORT_BY_GROUP));
     }
 
     @Test
@@ -1772,7 +1818,7 @@ public class TranslatorSyntheticTest extends CssBaseTest {
     public void testBackgroundColor() throws CQLException {
         String css = "* { background: yellow; background-opacity: 0.5; stroke: red }";
         Style style = translate(css);
-        Fill background = ((org.geotools.styling.Style) style).getBackground();
+        Fill background = ((org.geotools.api.style.Style) style).getBackground();
         assertNotNull(background);
         assertEquals(Color.YELLOW, background.getColor().evaluate(null, Color.class));
         assertEquals(0.5, background.getOpacity().evaluate(null, Double.class), 0d);
@@ -1782,7 +1828,7 @@ public class TranslatorSyntheticTest extends CssBaseTest {
     public void testBackgroundGraphic() throws CQLException {
         String css = "* {background: symbol('circle'); :background {fill: yellow}; stroke: red}";
         Style style = translate(css);
-        Fill background = ((org.geotools.styling.Style) style).getBackground();
+        Fill background = style.getBackground();
         assertNotNull(background);
         Graphic graphicFill = background.getGraphicFill();
         assertNotNull(graphicFill);
@@ -1797,7 +1843,7 @@ public class TranslatorSyntheticTest extends CssBaseTest {
                 "* { label: 'test'; shield: symbol(square); shield-placement: independent; shield-anchor: 0.5 1} :shield {fill:black}";
         Style style = translate(css);
         Rule rule = assertSingleRule(style);
-        TextSymbolizer2 ts = assertSingleSymbolizer(rule, TextSymbolizer2.class);
+        TextSymbolizer ts = assertSingleSymbolizer(rule, TextSymbolizer.class);
         assertLiteral("test", ts.getLabel());
         assertEquals("independent", ts.getOptions().get(TextSymbolizer.GRAPHIC_PLACEMENT_KEY));
         Graphic g = ts.getGraphic();

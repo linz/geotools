@@ -55,14 +55,17 @@ package org.geotools.coverage.grid.io.imageio.geotiff;
 
 import it.geosolutions.imageio.plugins.tiff.GeoTIFFTagSet;
 import java.awt.geom.AffineTransform;
+import java.text.MessageFormat;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.metadata.IIOMetadataNode;
 import org.geotools.coverage.grid.io.imageio.geotiff.codes.GeoTiffGCSCodes;
 import org.geotools.metadata.i18n.ErrorKeys;
-import org.geotools.metadata.i18n.Errors;
+import org.geotools.util.logging.Logging;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
@@ -92,6 +95,8 @@ import org.w3c.dom.NodeList;
  */
 public final class GeoTiffIIOMetadataDecoder {
 
+    static final Logger LOGGER = Logging.getLogger(GeoTiffIIOMetadataDecoder.class);
+
     private final IIOMetadata iioMetadata;
 
     private final Map<Integer, GeoKeyEntry> geoKeys;
@@ -108,9 +113,11 @@ public final class GeoTiffIIOMetadataDecoder {
 
     private final TiePoint[] tiePoints;
 
-    private final double noData;
+    private final Double noData;
 
     private final AffineTransform modelTransformation;
+
+    private final GeographicCitation geographicCitation;
 
     /**
      * The constructor builds a metadata adapter for the image metadata root IIOMetadataNode.
@@ -120,7 +127,7 @@ public final class GeoTiffIIOMetadataDecoder {
     public GeoTiffIIOMetadataDecoder(final IIOMetadata imageMetadata) {
         if (imageMetadata == null) {
             throw new IllegalArgumentException(
-                    Errors.format(ErrorKeys.NULL_ARGUMENT_$1, "imageMetadata"));
+                    MessageFormat.format(ErrorKeys.NULL_ARGUMENT_$1, "imageMetadata"));
         }
         iioMetadata = imageMetadata;
         // getting the image metadata root node.
@@ -168,6 +175,19 @@ public final class GeoTiffIIOMetadataDecoder {
         tiePoints = calculateTiePoints(rootNode);
         noData = calculateNoData(rootNode);
         modelTransformation = calculateModelTransformation(rootNode);
+        geographicCitation = calculateGeographicCitation();
+    }
+
+    private GeographicCitation calculateGeographicCitation() {
+        // this key may not be actually needed, be tolerant parsing it for backwards compatibility
+        try {
+            String citation = getGeoKey(GeoTiffGCSCodes.GeogCitationGeoKey);
+            if (citation == null) return null;
+            return new GeographicCitation(citation);
+        } catch (Exception e) {
+            LOGGER.log(Level.FINE, "Failed to parse GeogCitationGeoKey", e);
+            return null;
+        }
     }
 
     /**
@@ -194,6 +214,15 @@ public final class GeoTiffIIOMetadataDecoder {
     /** Gets the number of GeoKeys in the geokeys directory. */
     public int getNumGeoKeys() {
         return geoKeyDirTagsNum;
+    }
+
+    /**
+     * Returns the {@link GeoTiffGCSCodes#GeogCitationGeoKey} value, parsed into its components.
+     *
+     * @return
+     */
+    public GeographicCitation getGeographicCitation() {
+        return geographicCitation;
     }
 
     /**
@@ -317,19 +346,24 @@ public final class GeoTiffIIOMetadataDecoder {
      * @return the noData value or {@link Double#NaN} in case of unable to get noData.
      */
     public double getNoData() {
-        return noData;
+        return noData == null ? Double.NaN : noData.doubleValue();
     }
 
-    private double calculateNoData(Node rootNode) {
+    private Double calculateNoData(Node rootNode) {
         final IIOMetadataNode noDataNode = getTiffField(rootNode, GeoTiffConstants.TIFFTAG_NODATA);
         if (noDataNode == null) {
-            return Double.NaN;
+            return null;
         }
         final String noData = getTiffAscii(noDataNode);
         if (noData == null) {
-            return Double.NaN;
+            return null;
         }
         try {
+            // GDAL always serializes NaN as "nan".
+            if ("nan".equals(noData)) return Double.NaN;
+            // On Linux, +/- inf are serialized like the following.
+            if ("inf".equals(noData)) return Double.POSITIVE_INFINITY;
+            if ("-inf".equals(noData)) return Double.NEGATIVE_INFINITY;
             return Double.parseDouble(noData);
         } catch (NumberFormatException nfe) {
             // TODO: Log a message.
@@ -374,7 +408,7 @@ public final class GeoTiffIIOMetadataDecoder {
      * @see GeoTiffConstants#TIFFTAG_NODATA
      */
     public boolean hasNoData() {
-        return !Double.isNaN(noData);
+        return noData != null;
     }
 
     /**

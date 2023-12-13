@@ -33,12 +33,12 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.event.ListDataEvent;
 import javax.swing.event.ListDataListener;
+import org.geotools.api.style.Style;
 import org.geotools.map.Layer;
 import org.geotools.map.MapContent;
 import org.geotools.map.MapLayerListEvent;
 import org.geotools.map.MapLayerListListener;
 import org.geotools.map.StyleLayer;
-import org.geotools.styling.Style;
 import org.geotools.swing.control.DnDList;
 import org.geotools.swing.control.DnDListModel;
 import org.geotools.swing.event.MapPaneAdapter;
@@ -127,15 +127,15 @@ public class MapLayerTable extends JPanel {
         doSetMapPane(mapPane);
     }
 
-    /**
-     * Helper for {@link #setMapPane(MapPane). This is just defined so that
-     * it can be called from the constructor without a warning from the compiler
-     * about calling a public overridable method.
-     *
-     * @param mapPane the map pane
-     */
     private Listener listener;
 
+    /**
+     * Helper for {@link #setMapPane(MapPane)}. This is just defined so that it can be called from
+     * the constructor without a warning from the compiler about calling a public overridable
+     * method.
+     *
+     * @param newMapPane the map pane
+     */
     private void doSetMapPane(MapPane newMapPane) {
         listener.disconnectFromMapPane();
         mapPane = newMapPane;

@@ -24,9 +24,9 @@ import java.awt.geom.Line2D;
 import java.awt.geom.Rectangle2D;
 import java.util.HashMap;
 import java.util.Map;
+import org.geotools.api.feature.Feature;
+import org.geotools.api.filter.expression.Expression;
 import org.geotools.renderer.util.ExplicitBoundsShape;
-import org.opengis.feature.Feature;
-import org.opengis.filter.expression.Expression;
 
 public class ShapeMarkFactory implements MarkFactory {
 
@@ -41,8 +41,7 @@ public class ShapeMarkFactory implements MarkFactory {
         shapes.put("backslash", new Line2D.Double(-0.5, 0.5, 0.5, -0.5));
 
         ExplicitBoundsShape dotShape =
-                new ExplicitBoundsShape(
-                        new Ellipse2D.Double(-0.000001, -0.000001, 0.000001, 0.000001));
+                new ExplicitBoundsShape(new Ellipse2D.Double(-0.1, -0.1, 0.1, 0.1));
         dotShape.setBounds(new Rectangle2D.Double(-0.5, 0.5, 1.0, 1.0));
         shapes.put("dot", dotShape);
 

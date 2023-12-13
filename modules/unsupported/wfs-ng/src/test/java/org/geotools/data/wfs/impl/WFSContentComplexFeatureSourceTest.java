@@ -17,7 +17,13 @@ import java.io.ByteArrayOutputStream;
 import java.net.URL;
 import javax.xml.namespace.QName;
 import org.geotools.TestData;
-import org.geotools.data.Query;
+import org.geotools.api.data.Query;
+import org.geotools.api.feature.Feature;
+import org.geotools.api.feature.type.FeatureType;
+import org.geotools.api.feature.type.Name;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.filter.FilterFactory;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
 import org.geotools.data.wfs.TestHttpClient;
 import org.geotools.data.wfs.TestWFSClient;
 import org.geotools.data.wfs.internal.GetFeatureRequest;
@@ -31,13 +37,7 @@ import org.geotools.http.MockHttpResponse;
 import org.geotools.referencing.CRS;
 import org.junit.Assert;
 import org.junit.Test;
-import org.opengis.feature.Feature;
-import org.opengis.feature.type.FeatureType;
-import org.opengis.feature.type.Name;
-import org.opengis.filter.Filter;
-import org.opengis.filter.FilterFactory;
-import org.opengis.filter.FilterFactory2;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
+import org.xml.sax.helpers.NamespaceSupport;
 
 /**
  * WFS returning complex feature source
@@ -50,19 +50,20 @@ import org.opengis.referencing.crs.CoordinateReferenceSystem;
  */
 public class WFSContentComplexFeatureSourceTest {
 
+    private static final String NS =
+            "http://skjema.geonorge.no/SOSI/produktspesifikasjon/StedsnavnForVanligBruk/20181115";
+
+    private static final String PREFIX = "app";
+
     private static final String STED = "Sted";
 
-    private static final Name STED_NAME =
-            new NameImpl(
-                    "http://skjema.geonorge.no/SOSI/produktspesifikasjon/StedsnavnForVanligBruk/20181115",
-                    STED);
+    private static final Name STED_NAME = new NameImpl(NS, STED);
 
-    private static final QName REMOTE_STED_NAME =
-            new QName(STED_NAME.getNamespaceURI(), STED_NAME.getLocalPart(), "app");
+    private static final QName REMOTE_STED_NAME = new QName(NS, STED, PREFIX);
 
     private static final String GEOM_FIELD_NAME = "posisjon";
 
-    private static FilterFactory ff = CommonFactoryFinder.getFilterFactory2();
+    private static FilterFactory ff = CommonFactoryFinder.getFilterFactory();
 
     private static final String DEFAULT_SRS = "urn:ogc:def:crs:EPSG::4258";
 
@@ -95,6 +96,40 @@ public class WFSContentComplexFeatureSourceTest {
         try (FeatureIterator<Feature> features = collection.features()) {
             Assert.assertTrue(features.hasNext());
             Assert.assertNotNull(features.next());
+        }
+    }
+
+    /**
+     * Expects a call for the full FILTER. The filter of subCollection is done while parsing.
+     *
+     * <p>Should handle two consequent calls on the same FeatureCollection.
+     */
+    @Test
+    public void testGetSubcollectionWithFilter() throws Exception {
+        final WFSClient client = createWFSClient(false);
+        final WFSContentDataAccess dataAccess = createDataAccess(client);
+
+        WFSContentComplexFeatureSource featureSource =
+                new WFSContentComplexFeatureSource(STED_NAME, client, dataAccess);
+
+        FeatureCollection<FeatureType, Feature> collection = featureSource.getFeatures(FILTER);
+        NamespaceSupport ns = new NamespaceSupport();
+        ns.declarePrefix(PREFIX, NS);
+
+        Filter correctFilter = ff.equals(ff.property("app:stedsnummer", ns), ff.literal(1));
+        try (FeatureIterator<Feature> features =
+                collection.subCollection(correctFilter).features()) {
+            Assert.assertTrue(features.hasNext());
+        }
+
+        Filter wrongFilter = ff.equal(ff.property("app:stedsnummer", ns), ff.literal(2));
+        try (FeatureIterator<Feature> features = collection.subCollection(wrongFilter).features()) {
+            Assert.assertFalse(features.hasNext());
+        }
+
+        try (FeatureIterator<Feature> features =
+                collection.subCollection(Filter.INCLUDE).features()) {
+            Assert.assertTrue(features.hasNext());
         }
     }
 
@@ -138,7 +173,7 @@ public class WFSContentComplexFeatureSourceTest {
         ReferencedEnvelope actualReprojected = actual.transform(utm33, true);
         assertEnvelope(actualReprojected, envelopeReprojected);
 
-        FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2();
+        FilterFactory ff = CommonFactoryFinder.getFilterFactory();
         Query filteredQuery =
                 new Query(STED, ff.bbox("posisjon", 60.0, 20.0, 61.0, 21.0, DEFAULT_SRS));
         ReferencedEnvelope envelopeFilter =

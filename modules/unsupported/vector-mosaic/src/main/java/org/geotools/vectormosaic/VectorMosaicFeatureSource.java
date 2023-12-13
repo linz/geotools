@@ -23,30 +23,43 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
-import org.geotools.data.DataStore;
-import org.geotools.data.FeatureReader;
-import org.geotools.data.FeatureSource;
-import org.geotools.data.Query;
-import org.geotools.data.Repository;
+import org.geotools.api.data.DataStore;
+import org.geotools.api.data.FeatureReader;
+import org.geotools.api.data.FeatureSource;
+import org.geotools.api.data.Query;
+import org.geotools.api.data.Repository;
+import org.geotools.api.data.SimpleFeatureSource;
+import org.geotools.api.feature.FeatureVisitor;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.feature.type.AttributeDescriptor;
+import org.geotools.api.feature.type.GeometryType;
+import org.geotools.api.feature.type.Name;
+import org.geotools.api.filter.Filter;
+import org.geotools.data.DataUtilities;
+import org.geotools.data.FilteringFeatureReader;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
-import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.data.store.ContentEntry;
 import org.geotools.data.store.ContentFeatureSource;
+import org.geotools.data.store.ContentState;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
+import org.geotools.feature.visitor.FeatureAttributeVisitor;
+import org.geotools.feature.visitor.MaxVisitor;
+import org.geotools.feature.visitor.MinVisitor;
+import org.geotools.feature.visitor.UniqueVisitor;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.util.logging.Logging;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.feature.type.AttributeDescriptor;
-import org.opengis.feature.type.GeometryType;
-import org.opengis.feature.type.Name;
-import org.opengis.filter.Filter;
 
 /** FeatureSource for a vector mosaic. */
 public class VectorMosaicFeatureSource extends ContentFeatureSource {
@@ -56,8 +69,10 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
     private final String delegateStoreName;
     private final String preferredSPI;
     private final String connectionParameterKey;
+    // included for cache testing purposes
+    protected ContentState state;
     protected FilterTracker filterTracker = new FilterTracker();
-    protected Set<String> granuleTracker;
+    protected GranuleStoreFinder finder;
 
     /**
      * VectorMosaicFeatureSource constructor.
@@ -74,6 +89,7 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
         repository = store.getRepository();
         delegateStoreName = store.getDelegateStoreName();
         this.preferredSPI = store.getPreferredSPI();
+        finder = new GranuleStoreFinderImpl(preferredSPI);
         this.connectionParameterKey = store.getConnectionParameterKey();
     }
 
@@ -96,7 +112,7 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
 
             if (isDelegate) {
                 String source = indexFeatureType.getGeometryDescriptor().getLocalName();
-                String target = buildFeatureType().getGeometryDescriptor().getLocalName();
+                String target = getSchema().getGeometryDescriptor().getLocalName();
                 AttributeRenameVisitor renameVisitor = new AttributeRenameVisitor(target, source);
                 Filter renamedFilter = (Filter) originalFilter.accept(renameVisitor, null);
                 renamedFilter.accept(splitter, null);
@@ -158,16 +174,66 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
     }
 
     @Override
+    // original instance is null, no need to clase at reassignment
+    @SuppressWarnings("PMD.CloseResource")
     protected FeatureReader<SimpleFeatureType, SimpleFeature> getReaderInternal(Query query)
             throws IOException {
+        FeatureReader<SimpleFeatureType, SimpleFeature> out = null;
         Name dsname = buildName(delegateStoreName);
         DataStore delegateDataStore = repository.dataStore(dsname);
         Filter splitFilterIndex =
                 getSplitFilter(query, delegateDataStore, delegateStoreTypeName, true);
         SimpleFeatureSource delegateFeatureSource =
                 delegateDataStore.getFeatureSource(delegateStoreTypeName);
-        SimpleFeatureCollection features = delegateFeatureSource.getFeatures(splitFilterIndex);
-        return new VectorMosaicFeatureReader(features, query, this);
+        Query delegateQuery = new Query(delegateStoreTypeName, splitFilterIndex);
+        if (query.getPropertyNames() != Query.ALL_NAMES) {
+            String[] filteredArray =
+                    getOnlyTypeMatchingAttributes(
+                            delegateDataStore, delegateStoreTypeName, query, true);
+            delegateQuery.setPropertyNames(filteredArray);
+        }
+        SimpleFeatureCollection features = delegateFeatureSource.getFeatures(delegateQuery);
+        out = new VectorMosaicFeatureReader(features, query, this);
+        if (query.getFilter() != null) {
+            Filter filter = query.getFilter();
+            boolean filterIsAllIndex =
+                    allFilterAttributesAreInType(delegateFeatureSource.getSchema(), filter);
+            SimpleFeatureType granuleType = getGranuleType();
+            boolean filterIsAllGranule = allFilterAttributesAreInType(granuleType, filter);
+            // filter is not all index and not all granule, so wrap in FilteringFeatureReader
+            if (!filterIsAllIndex && !filterIsAllGranule) {
+                out = new FilteringFeatureReader<>(out, filter);
+            }
+        }
+        return out;
+    }
+
+    public static String[] getOnlyTypeMatchingAttributes(
+            DataStore typeStore, String typeName, Query query, boolean isDelegate)
+            throws IOException {
+        SimpleFeatureType featureType = typeStore.getSchema(typeName);
+        Set<String> attributeNames =
+                VectorMosaicFeatureSource.getAttributeNamesForType(featureType);
+        String[] filteredArray =
+                Arrays.stream(query.getPropertyNames())
+                        .filter(attributeNames::contains)
+                        .toArray(String[]::new);
+        // delegate must have the connection parameters field
+        if (isDelegate) {
+            if (!containsString(
+                    filteredArray,
+                    VectorMosaicGranule.CONNECTION_PARAMETERS_DELEGATE_FIELD_DEFAULT)) {
+                List<String> list = new ArrayList<>(Arrays.asList(filteredArray));
+                list.add(VectorMosaicGranule.CONNECTION_PARAMETERS_DELEGATE_FIELD_DEFAULT);
+                filteredArray = list.toArray(new String[list.size()]);
+            }
+        }
+
+        return filteredArray;
+    }
+    // Method to check if a string is present in an array
+    private static boolean containsString(String[] array, String target) {
+        return Arrays.asList(array).contains(target);
     }
 
     /**
@@ -186,6 +252,15 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
         return getFeatureType(indexFeatureType, granuleFeatureType);
     }
 
+    @Override
+    public ContentState getState() {
+        if (state != null) {
+            return state;
+        } else {
+            return super.getState();
+        }
+    }
+
     /**
      * Get the feature type for the granules.
      *
@@ -193,37 +268,37 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
      * @throws IOException if the feature type can't be found.
      */
     protected SimpleFeatureType getGranuleType() throws IOException {
+        VectorMosaicState state = (VectorMosaicState) getState();
+        // caching should be done at the data store level!
+        if (state.getGranuleFeatureType() != null) return state.getGranuleFeatureType();
+
         Name dsname = buildName(delegateStoreName);
         DataStore delegateDataStore = repository.dataStore(dsname);
         SimpleFeatureSource delegateFeatureSource =
                 delegateDataStore.getFeatureSource(delegateStoreTypeName);
-        SimpleFeatureCollection features = delegateFeatureSource.getFeatures();
-        try (SimpleFeatureIterator fi = features.features(); ) {
-            SimpleFeature firstDelegateFeature = null;
-            if (fi.hasNext()) {
-                firstDelegateFeature = fi.next();
-            }
-            if (firstDelegateFeature == null) {
-                throw new IOException("No index features found in " + delegateStoreName);
-            }
-            try (VectorMosaicGranule granule =
-                    VectorMosaicGranule.fromDelegateFeature(firstDelegateFeature); ) {
-                initGranule(granule, true);
-                SimpleFeatureType granuleFeatureType = null;
-                try {
-                    granuleFeatureType =
-                            granule.getDataStore().getSchema(granule.getGranuleTypeName());
-                } catch (Exception e) {
-                    LOGGER.log(
-                            Level.WARNING,
-                            "Could not get schema for " + granule.getGranuleTypeName(),
-                            e);
-                    throw new IOException(
-                            "Could not get schema for " + granule.getGranuleTypeName(), e);
-                }
-                return granuleFeatureType;
+        Query q = new Query(delegateFeatureSource.getSchema().getTypeName());
+        q.setMaxFeatures(1);
+        SimpleFeatureCollection features = delegateFeatureSource.getFeatures(q);
+        SimpleFeature firstDelegateFeature = DataUtilities.first(features);
+        if (firstDelegateFeature == null) {
+            throw new IOException("No index features found in " + delegateStoreName);
+        }
+        VectorMosaicGranule granule = VectorMosaicGranule.fromDelegateFeature(firstDelegateFeature);
+        DataStore granuleDataStore = initGranule(granule, true);
+        SimpleFeatureType granuleFeatureType = null;
+        try {
+            granuleFeatureType = granuleDataStore.getSchema(granule.getGranuleTypeName());
+        } catch (Exception e) {
+            LOGGER.log(
+                    Level.WARNING, "Could not get schema for " + granule.getGranuleTypeName(), e);
+            throw new IOException("Could not get schema for " + granule.getGranuleTypeName(), e);
+        } finally {
+            if (granuleDataStore != null) {
+                granuleDataStore.dispose();
             }
         }
+        state.setGranuleFeatureType(granuleFeatureType);
+        return granuleFeatureType;
     }
 
     /**
@@ -270,11 +345,95 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
      * @param granule the granule
      * @throws IOException if data store can't be found
      */
-    public void initGranule(VectorMosaicGranule granule, boolean isSampleForType)
+    public DataStore initGranule(VectorMosaicGranule granule, boolean isSampleForType)
             throws IOException {
+        DataStore dataStore = null;
         validateAndLoadConnectionStringProperties(granule);
-        findDataStore(granule, isSampleForType);
-        populateGranuleTypeName(granule);
+        Optional<DataStore> dataStoreOptional = finder.findDataStore(granule, isSampleForType);
+        dataStore =
+                dataStoreOptional.orElseThrow(
+                        () -> new IOException("No data store found for granule"));
+        populateGranuleTypeName(granule, dataStore);
+        return dataStore;
+    }
+
+    private DataStore getDataStoreByName(String typeName) {
+        Name dsname = buildName(typeName);
+        return repository.dataStore(dsname);
+    }
+
+    private Set<String> getAttributeNamesForType(String storeName, String typeName)
+            throws IOException {
+        DataStore dataStore = getDataStoreByName(storeName);
+        SimpleFeatureType featureType = dataStore.getSchema(typeName);
+        return getAttributeNamesForType(featureType);
+    }
+
+    public static Set<String> getAttributeNamesForType(SimpleFeatureType featureType)
+            throws IOException {
+        return featureType.getAttributeDescriptors().stream()
+                .map(AttributeDescriptor::getLocalName)
+                .collect(Collectors.toSet());
+    }
+
+    private boolean allFilterAttributesAreInType(String storeName, String typeName, Filter filter)
+            throws IOException {
+        Set<String> indexAttributeNames = getAttributeNamesForType(storeName, typeName);
+        String[] filterAttributeNames = DataUtilities.attributeNames(filter);
+        return indexAttributeNames.containsAll(Arrays.asList(filterAttributeNames));
+    }
+
+    private boolean allFilterAttributesAreInType(SimpleFeatureType featureType, Filter filter)
+            throws IOException {
+        String[] filterAttributeNames = DataUtilities.attributeNames(filter);
+        return typeHasAllAttributeNames(filterAttributeNames, featureType);
+    }
+
+    private boolean typeHasAllAttributeNames(String[] propertyNames, SimpleFeatureType featureType)
+            throws IOException {
+        Set<String> indexAttributeNames = getAttributeNamesForType(featureType);
+        return indexAttributeNames.containsAll(Arrays.asList(propertyNames));
+    }
+
+    @Override
+    protected boolean handleVisitor(Query query, FeatureVisitor visitor) throws IOException {
+        // check if visitor is aggregate visitor
+        if (visitor instanceof MaxVisitor
+                || visitor instanceof MinVisitor
+                || visitor instanceof UniqueVisitor) {
+            Set<String> indexAttributeNames =
+                    getAttributeNamesForType(delegateStoreName, delegateStoreTypeName);
+            // check if all filter attributes are in index/delegate
+            if (query.getFilter() != null) {
+                if (!allFilterAttributesAreInType(
+                        delegateStoreName, delegateStoreTypeName, query.getFilter())) {
+                    return false;
+                }
+            }
+            // check if all visitor expressions are covered by index/delegate
+            List<String> visitorExpressionFields =
+                    ((FeatureAttributeVisitor) visitor)
+                            .getExpressions().stream()
+                                    .map(DataUtilities::attributeNames)
+                                    .flatMap(Arrays::stream)
+                                    .collect(Collectors.toList());
+
+            if (!indexAttributeNames.containsAll(visitorExpressionFields)) {
+                return false;
+            }
+
+            // this avoids query properties being set with granule attributes
+            query.setPropertyNames(visitorExpressionFields);
+            // visitor is aggregate type and all attributes are in index/delegate
+            DataStore delegateDataStore = getDataStoreByName(delegateStoreName);
+            delegateDataStore
+                    .getFeatureSource(delegateStoreTypeName)
+                    .getFeatures(query)
+                    .accepts(visitor, null);
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -283,14 +442,10 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
      * @param granule the granule
      * @throws IOException if connection string properties can't be loaded
      */
-    private void populateGranuleTypeName(VectorMosaicGranule granule) throws IOException {
+    protected void populateGranuleTypeName(VectorMosaicGranule granule, DataStore dataStore)
+            throws IOException {
         if (granule.getGranuleTypeName() == null || granule.getGranuleTypeName().isEmpty()) {
-            DataStore granuleDataStore = granule.getDataStore();
-            if (granuleDataStore == null) {
-                throw new IOException(
-                        "Could not find data store for granule " + granule.getParams());
-            }
-            String[] typeNames = granuleDataStore.getTypeNames();
+            String[] typeNames = dataStore.getTypeNames();
             if (typeNames.length > 0) {
                 granule.setGranuleTypeName(typeNames[0]);
             } else {
@@ -299,6 +454,15 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
         }
     }
 
+    @Override
+    protected boolean canRetype() {
+        return true;
+    }
+
+    @Override
+    protected boolean canFilter() {
+        return true;
+    }
     /**
      * Validates and loads the connection string properties into the granule
      *
@@ -353,22 +517,6 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
             return new File(params);
         } else {
             return params;
-        }
-    }
-
-    /**
-     * * Finds the data store for the given granule
-     *
-     * @param granule the granule to find the data store for
-     */
-    private void findDataStore(VectorMosaicGranule granule, boolean isSampleForType) {
-        VectorMosaicGranuleStoreFinder finder = null;
-        if (granuleTracker == null) {
-            finder = new VectorMosaicGranuleStoreFinderImpl(preferredSPI);
-            finder.findDataStore(granule, isSampleForType);
-        } else {
-            finder = new VectorMosaicGranuleStoreFinderMonitoring(preferredSPI, granuleTracker);
-            finder.findDataStore(granule, isSampleForType);
         }
     }
 }

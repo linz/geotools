@@ -31,10 +31,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.batik.anim.dom.SAXSVGDocumentFactory;
 import org.apache.batik.util.XMLResourceDescriptor;
+import org.geotools.api.feature.Feature;
+import org.geotools.api.filter.expression.Expression;
+import org.geotools.data.ows.URLCheckers;
 import org.geotools.util.Converters;
 import org.geotools.util.SoftValueHashMap;
-import org.opengis.feature.Feature;
-import org.opengis.filter.expression.Expression;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
@@ -81,6 +82,10 @@ public class RenderableSVGCache {
                 throw new IllegalArgumentException("Invalid URL: " + svgfile);
             }
         }
+
+        // validate the icon can actually be fetched, it may go to a random
+        // local filesystem location, or a remote server
+        URLCheckers.confirm(svgfile);
 
         // turn the svg into a document and cache results
         RenderableSVG svg = glyphCache.get(svgfile);

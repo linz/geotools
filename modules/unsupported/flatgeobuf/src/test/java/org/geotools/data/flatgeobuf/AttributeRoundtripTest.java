@@ -10,6 +10,7 @@ import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
@@ -17,18 +18,19 @@ import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
 import org.geotools.data.geojson.GeoJSONReader;
 import org.geotools.data.geojson.GeoJSONWriter;
 import org.geotools.data.memory.MemoryFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.feature.simple.SimpleFeatureBuilder;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
+import org.geotools.test.TestData;
 import org.geotools.util.URLs;
 import org.json.JSONObject;
 import org.junit.Test;
 import org.locationtech.jts.geom.Geometry;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.feature.simple.SimpleFeatureType;
 
 public class AttributeRoundtripTest {
 
@@ -37,18 +39,15 @@ public class AttributeRoundtripTest {
         SimpleFeatureCollection fc = GeoJSONReader.parseFeatureCollection(geojson);
         FeatureCollectionConversions.serialize(fc, 1, os);
         byte[] bytes = os.toByteArray();
-        fc = FeatureCollectionConversions.deserialize(new ByteArrayInputStream(bytes));
+        fc = FeatureCollectionConversions.deserializeSFC(new ByteArrayInputStream(bytes));
         String result = GeoJSONWriter.toGeoJSON(fc);
         return result;
     }
 
     String getResource(String name)
             throws URISyntaxException, UnsupportedEncodingException, IOException {
-        File file =
-                URLs.urlToFile(
-                        getClass()
-                                .getClassLoader()
-                                .getResource("org/geotools/data/flatgeobuf/" + name));
+        URL url = TestData.url(FlatGeobufDataStore.class, name);
+        File file = URLs.urlToFile(url);
         String resource =
                 new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8.name());
         return GeoJSONWriter.toGeoJSON(GeoJSONReader.parseFeatureCollection(resource));
@@ -107,7 +106,7 @@ public class AttributeRoundtripTest {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         bb.order(ByteOrder.LITTLE_ENDIAN);
         SimpleFeatureCollection actual =
-                FeatureCollectionConversions.deserialize(new ByteArrayInputStream(bytes));
+                FeatureCollectionConversions.deserializeSFC(new ByteArrayInputStream(bytes));
         SimpleFeature expectedFeature = (SimpleFeature) expected.toArray()[0];
         SimpleFeature actualFeature = (SimpleFeature) actual.toArray()[0];
         // assertEquals(expectedFeature.getAttribute(0).toString(),

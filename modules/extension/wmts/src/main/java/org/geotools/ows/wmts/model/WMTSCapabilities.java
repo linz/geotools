@@ -46,6 +46,9 @@ import net.opengis.wmts.v_1.TileMatrixSetType;
 import net.opengis.wmts.v_1.TileMatrixType;
 import net.opengis.wmts.v_1.URLTemplateType;
 import org.eclipse.emf.common.util.EList;
+import org.geotools.api.referencing.FactoryException;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
+import org.geotools.api.referencing.operation.TransformException;
 import org.geotools.data.ows.Capabilities;
 import org.geotools.data.ows.OperationType;
 import org.geotools.geometry.jts.ReferencedEnvelope;
@@ -60,9 +63,6 @@ import org.geotools.util.SimpleInternationalString;
 import org.geotools.util.logging.Logging;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
-import org.opengis.referencing.FactoryException;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
-import org.opengis.referencing.operation.TransformException;
 
 /**
  * Represents a base object for a WMTS getCapabilities response.
@@ -330,20 +330,29 @@ public class WMTSCapabilities extends Capabilities {
     }
 
     private WMTSLayer parseLayer(LayerType layerType) {
-        String title = ((LanguageStringType) layerType.getTitle().get(0)).getValue();
-        WMTSLayer layer = new WMTSLayer(title);
-        layer.setName(layerType.getIdentifier().getValue());
 
-        // The Abstract is of Type LanguageStringType, not String.
-        StringBuilder sb = new StringBuilder();
-        for (Object line : layerType.getAbstract()) {
-            if (line instanceof LanguageStringType) {
-                sb.append(((LanguageStringType) line).getValue());
-            } else {
-                sb.append(line);
-            }
-        } // end of for
-        layer.set_abstract(sb.toString());
+        String name = layerType.getIdentifier().getValue();
+        String title =
+                layerType.getTitle().size() > 0
+                        ? ((LanguageStringType) layerType.getTitle().get(0)).getValue()
+                        : name;
+
+        WMTSLayer layer = new WMTSLayer(title);
+        layer.setName(name);
+
+        // The Abstract is of Type LanguageStringType, not String. We're choosing the first one.
+        if (layerType.getAbstract().size() > 0) {
+            StringBuilder sb = new StringBuilder();
+            for (Object line : layerType.getAbstract()) {
+                if (line instanceof LanguageStringType) {
+                    sb.append(((LanguageStringType) line).getValue());
+                    break;
+                } else {
+                    sb.append(line);
+                }
+            } // end of for
+            layer.set_abstract(sb.toString());
+        }
 
         EList<TileMatrixSetLinkType> tmsLinks = layerType.getTileMatrixSetLink();
         for (TileMatrixSetLinkType linkType : tmsLinks) {

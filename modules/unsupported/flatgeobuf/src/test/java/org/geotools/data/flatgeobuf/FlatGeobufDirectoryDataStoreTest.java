@@ -31,23 +31,24 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.geotools.data.DataStore;
-import org.geotools.data.DataStoreFinder;
+import org.geotools.api.data.DataStore;
+import org.geotools.api.data.DataStoreFinder;
+import org.geotools.api.data.Query;
+import org.geotools.api.data.SimpleFeatureSource;
+import org.geotools.api.data.SimpleFeatureStore;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
 import org.geotools.data.DataUtilities;
-import org.geotools.data.Query;
 import org.geotools.data.simple.SimpleFeatureCollection;
-import org.geotools.data.simple.SimpleFeatureSource;
-import org.geotools.data.simple.SimpleFeatureStore;
 import org.geotools.feature.simple.SimpleFeatureBuilder;
 import org.geotools.geometry.jts.JTSFactoryFinder;
+import org.geotools.test.TestData;
 import org.geotools.util.URLs;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.feature.simple.SimpleFeatureType;
 
 public class FlatGeobufDirectoryDataStoreTest {
 
@@ -62,11 +63,7 @@ public class FlatGeobufDirectoryDataStoreTest {
         // Copy over some FGB files
         String[] fgbNames = {"lines", "points", "polygons"};
         for (String name : fgbNames) {
-            File file =
-                    URLs.urlToFile(
-                            getClass()
-                                    .getClassLoader()
-                                    .getResource("org/geotools/data/flatgeobuf/" + name + ".fgb"));
+            File file = URLs.urlToFile(TestData.url(FlatGeobufDataStore.class, name + ".fgb"));
             Files.copy(
                     file.toPath(),
                     new File(directory, file.getName()).toPath(),

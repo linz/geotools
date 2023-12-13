@@ -36,6 +36,9 @@ import java.util.Scanner;
 import java.util.TimeZone;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.temporal.Instant;
+import org.geotools.api.temporal.Period;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.feature.NameImpl;
 import org.geotools.temporal.object.DefaultInstant;
@@ -43,9 +46,6 @@ import org.geotools.temporal.object.DefaultPeriod;
 import org.geotools.temporal.object.DefaultPosition;
 import org.junit.After;
 import org.junit.Before;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.temporal.Instant;
-import org.opengis.temporal.Period;
 import org.testcontainers.elasticsearch.ElasticsearchContainer;
 
 public class ElasticTestSupport {
@@ -130,7 +130,7 @@ public class ElasticTestSupport {
         client.close();
     }
 
-    private void createIndices() throws IOException {
+    protected void createIndices(ElasticClient client, String indexName) throws IOException {
         // create index and add mappings
         Map<String, Object> settings = new HashMap<>();
         settings.put(
@@ -158,7 +158,7 @@ public class ElasticTestSupport {
                 }
             }
         }
-        performRequest("PUT", "/" + indexName, settings);
+        performRequest(client, "PUT", "/" + indexName, settings);
 
         // add alias
         Map<String, Object> aliases =
@@ -167,7 +167,11 @@ public class ElasticTestSupport {
                         ImmutableList.of(
                                 ImmutableMap.of(
                                         "index", indexName, "alias", indexName + "_alias")));
-        performRequest("PUT", "/_alias", aliases);
+        performRequest(client, "PUT", "/_alias", aliases);
+    }
+
+    private void createIndices() throws IOException {
+        createIndices(client, indexName);
     }
 
     private void indexDocuments(String status) throws IOException {
@@ -248,6 +252,12 @@ public class ElasticTestSupport {
     }
 
     private void performRequest(String method, String endpoint, Map<String, Object> body)
+            throws IOException {
+        performRequest(client, method, endpoint, body);
+    }
+
+    protected void performRequest(
+            ElasticClient client, String method, String endpoint, Map<String, Object> body)
             throws IOException {
         ((RestElasticClient) client).performRequest(method, endpoint, body);
     }

@@ -29,7 +29,21 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLStreamException;
-import org.geotools.data.DataSourceException;
+import org.geotools.api.data.DataSourceException;
+import org.geotools.api.feature.Attribute;
+import org.geotools.api.feature.ComplexAttribute;
+import org.geotools.api.feature.Feature;
+import org.geotools.api.feature.Property;
+import org.geotools.api.feature.type.AttributeDescriptor;
+import org.geotools.api.feature.type.AttributeType;
+import org.geotools.api.feature.type.ComplexType;
+import org.geotools.api.feature.type.FeatureType;
+import org.geotools.api.feature.type.GeometryType;
+import org.geotools.api.feature.type.Name;
+import org.geotools.api.feature.type.PropertyDescriptor;
+import org.geotools.api.feature.type.PropertyType;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.filter.FilterFactory;
 import org.geotools.data.complex.feature.type.Types;
 import org.geotools.data.complex.util.ComplexFeatureConstants;
 import org.geotools.data.wfs.internal.WFSStrategy;
@@ -41,20 +55,6 @@ import org.geotools.feature.LenientFeatureFactoryImpl;
 import org.geotools.feature.NameImpl;
 import org.geotools.feature.type.AttributeDescriptorImpl;
 import org.geotools.gml3.GML;
-import org.opengis.feature.Attribute;
-import org.opengis.feature.ComplexAttribute;
-import org.opengis.feature.Feature;
-import org.opengis.feature.Property;
-import org.opengis.feature.type.AttributeDescriptor;
-import org.opengis.feature.type.AttributeType;
-import org.opengis.feature.type.ComplexType;
-import org.opengis.feature.type.FeatureType;
-import org.opengis.feature.type.GeometryType;
-import org.opengis.feature.type.Name;
-import org.opengis.feature.type.PropertyDescriptor;
-import org.opengis.feature.type.PropertyType;
-import org.opengis.filter.Filter;
-import org.opengis.filter.FilterFactory;
 
 /**
  * Parses complex features from a WFS response input stream.
@@ -133,6 +133,11 @@ public class XmlComplexFeatureParser extends XmlFeatureParser<FeatureType, Featu
             throws IOException {
         super(getFeatureResponseStream, targetType, featureDescriptorName, strategy);
         this.featureBuilder = new ComplexFeatureBuilder(this.targetType);
+        this.filter = filter;
+    }
+
+    /** Sets a filter that is evaluated against the returned features. */
+    public void setFilter(Filter filter) {
         this.filter = filter;
     }
 
@@ -267,7 +272,7 @@ public class XmlComplexFeatureParser extends XmlFeatureParser<FeatureType, Featu
      *     that represent an attribute that belongs in the complexType specified. Returns null once
      *     there are no more elements in the complex type you're trying to parse.
      */
-    @SuppressWarnings("PMD.EmptyWhileStmt")
+    @SuppressWarnings({"PMD.EmptyControlStatement"})
     private ReturnAttribute parseNextAttribute(ComplexType complexType)
             throws XMLStreamException, IOException {
 

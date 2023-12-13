@@ -81,6 +81,21 @@ import javax.media.jai.JAI;
 import javax.media.jai.PlanarImage;
 import javax.media.jai.ROI;
 import javax.media.jai.RenderedOp;
+import org.geotools.api.coverage.ColorInterpretation;
+import org.geotools.api.coverage.grid.Format;
+import org.geotools.api.coverage.grid.GridCoverage;
+import org.geotools.api.coverage.grid.GridEnvelope;
+import org.geotools.api.data.DataSourceException;
+import org.geotools.api.data.FileGroupProvider.FileGroup;
+import org.geotools.api.data.ResourceInfo;
+import org.geotools.api.geometry.Bounds;
+import org.geotools.api.parameter.GeneralParameterValue;
+import org.geotools.api.parameter.ParameterValue;
+import org.geotools.api.referencing.FactoryException;
+import org.geotools.api.referencing.ReferenceIdentifier;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
+import org.geotools.api.referencing.operation.MathTransform;
+import org.geotools.api.referencing.operation.TransformException;
 import org.geotools.coverage.Category;
 import org.geotools.coverage.GridSampleDimension;
 import org.geotools.coverage.TypeMap;
@@ -98,12 +113,10 @@ import org.geotools.coverage.grid.io.imageio.geotiff.GeoTiffIIOMetadataDecoder;
 import org.geotools.coverage.grid.io.imageio.geotiff.GeoTiffMetadata2CRSAdapter;
 import org.geotools.coverage.grid.io.imageio.geotiff.TiePoint;
 import org.geotools.coverage.util.CoverageUtilities;
-import org.geotools.data.DataSourceException;
-import org.geotools.data.FileGroupProvider.FileGroup;
 import org.geotools.data.MapInfoFileReader;
 import org.geotools.data.PrjFileReader;
 import org.geotools.data.WorldFileReader;
-import org.geotools.geometry.GeneralEnvelope;
+import org.geotools.geometry.GeneralBounds;
 import org.geotools.image.ImageWorker;
 import org.geotools.image.io.ImageIOExt;
 import org.geotools.image.util.ImageUtilities;
@@ -116,18 +129,6 @@ import org.geotools.util.NumberRange;
 import org.geotools.util.URLs;
 import org.geotools.util.Utilities;
 import org.geotools.util.factory.Hints;
-import org.opengis.coverage.ColorInterpretation;
-import org.opengis.coverage.grid.Format;
-import org.opengis.coverage.grid.GridCoverage;
-import org.opengis.coverage.grid.GridEnvelope;
-import org.opengis.geometry.Envelope;
-import org.opengis.parameter.GeneralParameterValue;
-import org.opengis.parameter.ParameterValue;
-import org.opengis.referencing.FactoryException;
-import org.opengis.referencing.ReferenceIdentifier;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
-import org.opengis.referencing.operation.MathTransform;
-import org.opengis.referencing.operation.TransformException;
 
 /**
  * this class is responsible for exposing the data and the Georeferencing metadata available to the
@@ -166,7 +167,7 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
     /** Adapter for the GeoTiff crs. */
     private GeoTiffMetadata2CRSAdapter gtcs;
 
-    private double noData = Double.NaN;
+    private Double noData = null;
 
     /** File containing image overviews */
     private File ovrSource;
@@ -379,7 +380,7 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
                 // nodata though float to get a representation that would succesfully compare
                 // against the pixels
                 if (sampleModel.getDataType() == DataBuffer.TYPE_FLOAT) {
-                    noData = (float) noData;
+                    noData = Double.valueOf(((Double) noData).floatValue());
                 }
             }
 
@@ -510,7 +511,7 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
             originalEnvelope =
                     CRS.transform(
                             ProjectiveTransform.create(tempTransform),
-                            new GeneralEnvelope(actualDim));
+                            new GeneralBounds(actualDim));
             originalEnvelope.setCoordinateReferenceSystem(crs);
 
             // ///
@@ -609,10 +610,17 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
         }
     }
 
-    /** @see org.opengis.coverage.grid.GridCoverageReader#getFormat() */
+    /** @see org.geotools.api.coverage.grid.GridCoverageReader#getFormat() */
     @Override
     public Format getFormat() {
         return new GeoTiffFormat();
+    }
+
+    @Override
+    public ResourceInfo getInfo(String coverageName) {
+        List<FileGroup> files = getFiles();
+        if (files == null) files = Collections.emptyList();
+        return new GeoTIFFResourceInfo(files, pamDataset);
     }
 
     /**
@@ -625,7 +633,7 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
      */
     @Override
     public GridCoverage2D read(GeneralParameterValue[] params) throws IOException {
-        GeneralEnvelope requestedEnvelope = null;
+        GeneralBounds requestedEnvelope = null;
         Rectangle dim = null;
         Color inputTransparentColor = null;
         OverviewPolicy overviewPolicy = null;
@@ -642,7 +650,7 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
                 final ReferenceIdentifier name = param.getDescriptor().getName();
                 if (name.equals(AbstractGridFormat.READ_GRIDGEOMETRY2D.getName())) {
                     final GridGeometry2D gg = (GridGeometry2D) param.getValue();
-                    requestedEnvelope = new GeneralEnvelope((Envelope) gg.getEnvelope2D());
+                    requestedEnvelope = new GeneralBounds((Bounds) gg.getEnvelope2D());
                     dim = gg.getGridRange2D().getBounds();
                     continue;
                 }
@@ -754,7 +762,7 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
 
         // applying rescale if needed
         if (rescalePixels) {
-            if (!Double.isNaN(noData)) {
+            if (noData != null) {
                 // Force nodata settings since JAI ImageRead may lost that
                 // We have to make sure that noData pixels won't be rescaled
                 PlanarImage t = PlanarImage.wrapRenderedImage(coverageRaster);
@@ -975,7 +983,7 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
 
         Category noDataCategory = null;
         final Map<String, Object> properties = new HashMap<>();
-        if (Double.isFinite(noData)) {
+        if (noData != null && !Double.isInfinite(noData)) {
             noDataCategory =
                     new Category(
                             Vocabulary.formatInternational(VocabularyKeys.NODATA),
@@ -1017,12 +1025,7 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
                     coverageName, image, crs, raster2Model, bands, null, properties);
         }
         return coverageFactory.create(
-                coverageName,
-                image,
-                new GeneralEnvelope(originalEnvelope),
-                bands,
-                null,
-                properties);
+                coverageName, image, new GeneralBounds(originalEnvelope), bands, null, properties);
     }
 
     private CoordinateReferenceSystem getCRS(Object source) {

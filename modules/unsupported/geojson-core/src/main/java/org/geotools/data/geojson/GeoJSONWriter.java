@@ -39,6 +39,17 @@ import java.util.TimeZone;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.commons.lang3.time.FastDateFormat;
+import org.geotools.api.feature.Property;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.type.GeometryType;
+import org.geotools.api.feature.type.PropertyType;
+import org.geotools.api.geometry.BoundingBox;
+import org.geotools.api.geometry.MismatchedDimensionException;
+import org.geotools.api.referencing.FactoryException;
+import org.geotools.api.referencing.crs.CRSAuthorityFactory;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
+import org.geotools.api.referencing.operation.MathTransform;
+import org.geotools.api.referencing.operation.TransformException;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.geometry.jts.JTS;
@@ -50,17 +61,6 @@ import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.GeometryFactory;
-import org.opengis.feature.Property;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.feature.type.GeometryType;
-import org.opengis.feature.type.PropertyType;
-import org.opengis.geometry.BoundingBox;
-import org.opengis.geometry.MismatchedDimensionException;
-import org.opengis.referencing.FactoryException;
-import org.opengis.referencing.crs.CRSAuthorityFactory;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
-import org.opengis.referencing.operation.MathTransform;
-import org.opengis.referencing.operation.TransformException;
 
 /**
  * Wrapper to handle writing GeoJSON FeatureCollections
@@ -80,7 +80,7 @@ public class GeoJSONWriter implements AutoCloseable {
             FastDateFormat.getInstance(DEFAULT_DATE_FORMAT, DEFAULT_TIME_ZONE);
 
     /** Maximum number of decimal places (see https://xkcd.com/2170/ before changing it) */
-    private int maxDecimals = 4;
+    private int maxDecimals = JtsModule.DEFAULT_MAX_DECIMALS;
 
     private OutputStream out;
 
@@ -376,8 +376,16 @@ public class GeoJSONWriter implements AutoCloseable {
 
     /** Utility encoding a single JTS geometry in GeoJSON, and returning it as a string */
     public static String toGeoJSON(Geometry geometry) {
+        return toGeoJSON(geometry, JtsModule.DEFAULT_MAX_DECIMALS);
+    }
+
+    /**
+     * Utility encoding a single JTS geometry in GeoJSON with configurable max decimals, and
+     * returning it as a string
+     */
+    public static String toGeoJSON(Geometry geometry, int maxDecimals) {
         ObjectMapper lMapper = new ObjectMapper();
-        lMapper.registerModule(new JtsModule());
+        lMapper.registerModule(new JtsModule(maxDecimals));
         try {
             return lMapper.writeValueAsString(geometry);
         } catch (JsonProcessingException e) {

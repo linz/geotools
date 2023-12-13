@@ -19,11 +19,12 @@ package org.geotools.data.geobuf;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Date;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.type.AttributeDescriptor;
+import org.geotools.api.feature.type.GeometryDescriptor;
 import org.geotools.feature.simple.SimpleFeatureBuilder;
 import org.locationtech.jts.geom.Geometry;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.feature.type.AttributeDescriptor;
-import org.opengis.feature.type.GeometryDescriptor;
 
 /**
  * GeobufFeature encodes and decodes SimpleFeatures
@@ -110,6 +111,14 @@ public class GeobufFeature {
             builder.setDoubleValue((Double) value);
         } else if (value instanceof Boolean) {
             builder.setBoolValue((Boolean) value);
+        } else if (value instanceof Date) {
+            Date date = (Date) value;
+            long timestamp = date.getTime();
+            if (timestamp >= 0) {
+                builder.setPosIntValue(timestamp);
+            } else {
+                builder.setNegIntValue(-timestamp);
+            }
         } else {
             // cannot pass null here, will NPE
             if (value != null) {

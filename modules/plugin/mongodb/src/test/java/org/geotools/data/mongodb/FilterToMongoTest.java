@@ -26,6 +26,20 @@ import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import java.math.BigInteger;
 import java.util.Date;
+import org.geotools.api.filter.And;
+import org.geotools.api.filter.FilterFactory;
+import org.geotools.api.filter.Not;
+import org.geotools.api.filter.Or;
+import org.geotools.api.filter.PropertyIsBetween;
+import org.geotools.api.filter.PropertyIsEqualTo;
+import org.geotools.api.filter.PropertyIsGreaterThan;
+import org.geotools.api.filter.PropertyIsLessThan;
+import org.geotools.api.filter.PropertyIsLike;
+import org.geotools.api.filter.expression.Literal;
+import org.geotools.api.filter.spatial.BBOX;
+import org.geotools.api.filter.spatial.DWithin;
+import org.geotools.api.filter.spatial.Intersects;
+import org.geotools.api.filter.spatial.Within;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.referencing.crs.DefaultGeographicCRS;
@@ -38,31 +52,18 @@ import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
-import org.opengis.filter.And;
-import org.opengis.filter.FilterFactory2;
-import org.opengis.filter.Not;
-import org.opengis.filter.Or;
-import org.opengis.filter.PropertyIsBetween;
-import org.opengis.filter.PropertyIsEqualTo;
-import org.opengis.filter.PropertyIsGreaterThan;
-import org.opengis.filter.PropertyIsLessThan;
-import org.opengis.filter.PropertyIsLike;
-import org.opengis.filter.expression.Literal;
-import org.opengis.filter.spatial.BBOX;
-import org.opengis.filter.spatial.Intersects;
-import org.opengis.filter.spatial.Within;
 
 public class FilterToMongoTest {
 
     static final String DATE_LITERAL = "2015-07-01T00:00:00.000+01:00";
 
-    FilterFactory2 ff;
+    FilterFactory ff;
     FilterToMongo filterToMongo;
     MongoGeometryBuilder geometryBuilder;
 
     @Before
     public void setUp() throws Exception {
-        ff = CommonFactoryFinder.getFilterFactory2();
+        ff = CommonFactoryFinder.getFilterFactory();
         filterToMongo = new FilterToMongo(new GeoJSONMapper());
 
         SimpleFeatureTypeBuilder tb = new SimpleFeatureTypeBuilder();
@@ -208,6 +209,32 @@ public class FilterToMongoTest {
         Assert.assertNotNull(filterIntersectsCrsPropertiesName);
         Assert.assertEquals(
                 "urn:x-mongodb:crs:strictwinding:EPSG:4326", filterIntersectsCrsPropertiesName);
+    }
+
+    @Test
+    public void testDWithin() {
+        DWithin dwithin = ff.dwithin(ff.property("geom"), getPointParameter(), 1, "kilometers");
+        BasicDBObject obj = (BasicDBObject) dwithin.accept(filterToMongo, null);
+        Assert.assertNotNull(obj);
+
+        BasicDBObject filterDWithin = (BasicDBObject) obj.get("geometry");
+        Assert.assertNotNull(filterDWithin);
+
+        BasicDBObject near = (BasicDBObject) filterDWithin.get("$near");
+        Assert.assertNotNull(near);
+
+        Double maxDistance = (Double) near.get("$maxDistance");
+        Assert.assertEquals(1000d, maxDistance, 00.1);
+
+        BasicDBObject geometry = (BasicDBObject) near.get("$geometry");
+        Assert.assertNotNull(geometry);
+
+        BasicDBList coordinates = new BasicDBList();
+        coordinates.add(10d);
+        coordinates.add(10d);
+
+        Assert.assertEquals("Point", geometry.get("type"));
+        Assert.assertEquals(coordinates, geometry.get("coordinates"));
     }
 
     @Test
@@ -422,6 +449,10 @@ public class FilterToMongoTest {
             new Coordinate(10.0, 10.0),
         };
         return ff.literal(new GeometryFactory().createPolygon(coordinates));
+    }
+
+    private Literal getPointParameter() {
+        return ff.literal(new GeometryFactory().createPoint(new Coordinate(10.0, 10.0)));
     }
 
     private void testIntersectMongoQuery(BasicDBObject mongoQuery) {

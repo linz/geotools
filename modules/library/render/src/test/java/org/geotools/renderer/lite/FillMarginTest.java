@@ -5,14 +5,14 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.Collections;
 import java.util.Map;
+import org.geotools.api.data.SimpleFeatureSource;
+import org.geotools.api.style.Style;
 import org.geotools.data.property.PropertyDataStore;
-import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.image.test.ImageAssert;
 import org.geotools.map.FeatureLayer;
 import org.geotools.map.MapContent;
 import org.geotools.renderer.style.FontCache;
-import org.geotools.styling.Style;
 import org.geotools.test.TestData;
 import org.junit.Before;
 import org.junit.Test;
@@ -131,6 +131,25 @@ public class FillMarginTest {
         ImageAssert.assertEquals(
                 new File(
                         "./src/test/resources/org/geotools/renderer/lite/test-data/margin/single-expected.png"),
+                image,
+                100);
+    }
+
+    @Test
+    public void testMarkMarginAndRotation() throws Exception {
+        Style style = RendererBaseTest.loadStyle(this, "margin/mark-margin-and-rotation.sld");
+
+        MapContent mc = new MapContent();
+        mc.addLayer(new FeatureLayer(bfs, style));
+
+        StreamingRenderer renderer = new StreamingRenderer();
+        renderer.setMapContent(mc);
+
+        BufferedImage image =
+                RendererBaseTest.showRender("MarkMarginRotation", renderer, TIME, bounds);
+        ImageAssert.assertEquals(
+                new File(
+                        "./src/test/resources/org/geotools/renderer/lite/test-data/margin/markMarginRotation.png"),
                 image,
                 100);
     }

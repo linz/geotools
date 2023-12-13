@@ -27,11 +27,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import org.geotools.data.DataAccess;
-import org.geotools.data.DataAccessFactory;
+import org.geotools.api.data.DataAccess;
+import org.geotools.api.data.DataAccessFactory;
+import org.geotools.api.data.DataStoreFactorySpi;
+import org.geotools.api.data.Parameter;
+import org.geotools.api.feature.Feature;
+import org.geotools.api.feature.type.FeatureType;
 import org.geotools.data.DataUtilities;
-import org.geotools.data.Parameter;
-import org.geotools.data.wfs.internal.Loggers;
 import org.geotools.data.wfs.internal.WFSClient;
 import org.geotools.data.wfs.internal.WFSConfig;
 import org.geotools.http.HTTPClient;
@@ -41,15 +43,13 @@ import org.geotools.util.KVP;
 import org.geotools.util.PreventLocalEntityResolver;
 import org.geotools.util.SimpleInternationalString;
 import org.geotools.xml.XMLHandlerHints;
-import org.opengis.feature.Feature;
-import org.opengis.feature.type.FeatureType;
 import org.xml.sax.EntityResolver;
 
 /**
  * The factory responsible for creating WFSDataAccess objects based on their capabilities and the
  * configuration file used. This file is included as a candidate for DataAccessFinder by virtue of
- * the fact that its name is present in the file gt-wfs-ng > src/main/resources > META-INF >
- * services > org.geotools.data.DataAccessFactory.
+ * the fact that its name is present in the file gt-wfs-ng &gt; src/main/resources &gt; META-INF
+ * &gt; services &gt; org.geotools.api.data.DataAccessFactory.
  *
  * @author Adam Brown (Curtin University of Technology)
  */
@@ -127,7 +127,7 @@ public class WFSDataAccessFactory implements DataAccessFactory {
     }
 
     /** Access with {@link WFSDataStoreFactory#getParametersInfo()  */
-    private static final WFSFactoryParam<?>[] parametersInfo = new WFSFactoryParam[23];
+    private static final WFSFactoryParam<?>[] parametersInfo = new WFSFactoryParam[24];
 
     private static final int GMLComplianceLevel = 2;
 
@@ -149,7 +149,7 @@ public class WFSDataAccessFactory implements DataAccessFactory {
      * <ul>
      *   <li>{@code null} (not supplied): use "AUTO", let the DataStore decide.
      *   <li>{@code Boolean.TRUE} use HTTP POST preferably.
-     *   <li {@code Boolean.FALSE} use HTTP GET preferably.
+     *   <li>{@code Boolean.FALSE} use HTTP GET preferably.
      * </ul>
      */
     public static final WFSFactoryParam<Boolean> PROTOCOL;
@@ -242,7 +242,9 @@ public class WFSDataAccessFactory implements DataAccessFactory {
 
     /**
      * Optional {@code Integer} DataStore parameter indicating a timeout in milliseconds for the
-     * HTTP connections. <>p> @TODO: specify if its just a connection timeout or also a read timeout
+     * HTTP connections.
+     *
+     * <p>@TODO: specify if its just a connection timeout or also a read timeout
      */
     public static final WFSFactoryParam<Integer> TIMEOUT;
 
@@ -576,6 +578,22 @@ public class WFSDataAccessFactory implements DataAccessFactory {
                                 name, String.class, title, description, null, "program");
     }
 
+    @SuppressWarnings("rawtypes")
+    public static final WFSFactoryParam<Map> ADDITIONAL_HEADERS;
+
+    static {
+        String name = "WFSDataStoreFactory:ADDITIONAL_HEADERS";
+        String title = "Set additional HTTP request headers.";
+        String description =
+                "The given HTTP headers will be set on HTTP requests in addition to "
+                        + "the regular GeoTools managed headers (like Accept-Enconding, Content-type, "
+                        + "User-Agent, Authorization). Provided values must not conflict with GeoTools "
+                        + "managed headers. Parameters must use String keys and values.";
+        parametersInfo[23] =
+                ADDITIONAL_HEADERS =
+                        new WFSFactoryParam<>(name, Map.class, title, description, null, "program");
+    }
+
     /**
      * Checks whether {@code params} contains a valid set of parameters to connect to a WFS.
      *
@@ -599,17 +617,13 @@ public class WFSDataAccessFactory implements DataAccessFactory {
         if (!canProcess) {
             return false;
         }
+
         try {
             URL url = URL.lookUp(params);
-            if (!"http".equalsIgnoreCase(url.getProtocol())
-                    && !"https".equalsIgnoreCase(url.getProtocol())) {
-                if (!Boolean.TRUE.equals(params.get("TESTING"))) {
-                    Loggers.MODULE.finest("Can't process non http or https GetCapabilities URLs");
-                    return false; // must be http or https since we use
-                    // SimpleHTTPClient class
-                }
+            if (url == null) {
+                return false;
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             return false;
         }
 
@@ -660,7 +674,7 @@ public class WFSDataAccessFactory implements DataAccessFactory {
     /**
      * Returns the set of parameter descriptors needed to connect to a WFS.
      *
-     * @see org.geotools.data.DataStoreFactorySpi#getParametersInfo()
+     * @see DataStoreFactorySpi#getParametersInfo()
      * @see #URL
      * @see #NAMESPACE
      * @see #PROTOCOL

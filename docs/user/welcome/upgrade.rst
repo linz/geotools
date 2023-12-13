@@ -29,6 +29,137 @@ The first step to upgrade: change the ``geotools.version`` of your dependencies 
         ....
     </dependencies>
 
+.. _update30:
+
+GeoTools 30.x
+-------------
+
+This update contains a major breaking change to the GeoTools library refactoring to remove the ``org.opengis`` pacakage.
+
+The ``gt-opengis`` module has been renamed, change your dependency to:
+
+.. code-block:: xml
+
+   <dependency>
+       <groupId>org.geotools</groupId>
+       <artifactId>gt-api</artifactId>
+       <version>${geotools.version}</version>
+   </dependency>
+
+Unfortunately we could not maintain a deprecation cycle for this change and have provided an update script to assist.
+
+Remove OpenGIS and Cleanup GeoTools API
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The package ``org.opengis`` has changed ``org.geotools.api``.
+
+To aid in this transition an `Apache Ant <https://ant.apache.org>`__ script is provided:
+
+1. Download Ant script :download:`remove-opengis.xml <files/remove-opengis.xml>` included with this documentation.
+
+2. The default ``update`` target will update your Java code and ``META-INF/services``:
+
+   Use the absolute path for project.dir:
+
+   .. code-block:: bash
+    
+      ant -f remove-opengis.xml -Dproject.dir=(absolute path to your project directory)
+
+   Or copy :file:`remove-opengis.xml` file into  your project directory and run:
+
+   .. code-block:: bash
+
+      ant -f remove-opengis.xml
+
+3. We have done our best to with this update script but it is not perfect - known issues:
+
+   * Double check use of geometry Position and temporal Position which have the same classname in different packages
+   * Clean up unused or duplicate imports
+   * You may need to re-run code formatters
+
+Data API
+^^^^^^^^
+
+The main data access interfaces have been moved from ``org.geotools.data`` to ``org.geotools.api.data``.
+This includes, ``DataStore``, ``FeatureSource``, ``FeatureIterator``, and many others.
+
+As part of the move, the datastore registration files found in ``META-INF/services`` need to be moved as well, 
+in particular:
+
+
+.. code-block:: 
+
+   org.geotools.data.DataAccessFactory
+   org.geotools.data.DataStoreFactorySpi
+   org.geotools.data.FileDataStoreFactorySpi
+
+should now be named:
+
+.. code-block:: 
+
+   org.geotools.api.data.DataAccessFactory
+   org.geotools.api.data.DataStoreFactorySpi
+   org.geotools.api.data.FileDataStoreFactorySpi
+
+The upgrade script should take care of this change.
+
+
+ISO Geometry
+^^^^^^^^^^^^
+
+The **org.opengis.geometry** interfaces (for ``Point``, ``Curve`` and ``Surface`` and supporting classes) were no longer in use.
+
+The direct use of **JTS Topology Suite** ``Geometry`` is now used throughout the library. Previously Object was used
+requiring a cast to Geometry.
+
+.. code-block:: java
+
+   // cast to Geometry no longer needed
+   Geometry geometry = feature.getDefaultGeometry();
+
+
+DirectPosition and GeneralEnvelope cleanup
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The **org.opengis.geometry** and **org.opengis.geometry.coordinates** interfaces for positions, envelopes and bounding
+boxes have been revised as part of their refactor to **org.geotools.api**.
+
+===============================================  ===============================================================
+GeoAPI Preflight / OpenGIS                       GeoTools 30.x API
+===============================================  ===============================================================
+org.opengis.geometry.BoundingBox                 org.geotools.api.geometry.BoundingBox
+org.opengis.geometry.BoundingBox3D               org.geotools.api.geometry.BoundingBox3D
+org.opengis.geometry.DirectPosition              org.geotools.api.geometry.Position
+org.opengis.geometry.Envelope                    org.geotools.api.geometry.Bounds
+org.opengis.geometry.coordinates.PointArray      java.util.List<Position>
+org.opengis.geometry.coordinates.Position        org.geotools.api.geometry.Position
+===============================================  ===============================================================
+
+===============================================  ===============================================================
+GeoTools 29.x Implementation                     GeoTools 30.x Implementation
+===============================================  ===============================================================
+org.geotools.geometry.AbstractDirectPosition     org.geotools.api.geometry.AbstractPosition
+org.geotools.geometry.AbstractEnvelope           org.geotools.api.geometry.AbstractBounds
+org.geotools.geometry.DirectPosition1D           org.geotools.api.geometry.Position1D
+org.geotools.geometry.DirectPosition2D           org.geotools.api.geometry.Position2D
+org.geotools.geometry.DirectPosition3D           org.geotools.api.geometry.Position3D
+org.geotools.geometry.Envelope2D                 org.geotools.geometry.jts.ReferencedEnvelope
+org.geotools.geometry.GeneralDirectPosition      org.geotools.api.geometry.GeneralPosition
+org.geotools.geometry.GeneralEnvelope            org.geotools.api.geometry.GeneralBounds
+===============================================  ===============================================================
+
+For the most part these changes are method compatible, attempting common replacements:
+
+* Replace ``ReferencedEnvelope.create(Envelope,CoordinateReferenceSystem)`` with ``ReferencedEnvelope.envelope(Envelope,CoordinateReferenceSystem)``
+
+* Replace constructor ``Envelope2D(crs,x,y,width,height)`` with ``ReferencedEnvelope.rect(x,y,width,height,crs)``
+
+* Replace ``Envelope2D.equals(Envelope2D)`` with ``ReferencedEnvelope.boundsEquals2D(Bounds,double)``
+
+* Replace ``Envelope`` field access ``x``,``y``,``width``,``height`` with appropriate methods (example ``ReferencedEnvelope.getMinX()``)
+
+.. _update29:
+
 GeoTools 29.x
 -------------
 
@@ -44,6 +175,8 @@ Deprecated functions removed
 In gt-wfs-ng we've removed:
 ``org.geotools.data.wfs.WFSFeatureReader.WFSFeatureReader(GetParser<SimpleFeature>)``
 
+.. _update27:
+
 GeoTools 27.x
 -------------
 
@@ -52,7 +185,7 @@ Log4JLoggingFactory migrated to Reload4J
 
 We have changed to testing ``Log4JLoggingFactory`` against `reload4j project <https://reload4j.qos.ch/>`__.
 
-The Log4J 1.2 API has been `retired from Apache<https://logging.apache.org/log4j/1.2/>`__`, and the API is now maintained by the Reload4J project:
+The Log4J 1.2 API has been `retired from Apache <https://logging.apache.org/log4j/1.2/>`__, and the API is now maintained by the Reload4J project:
 
 .. code-block:: xml
 
@@ -126,6 +259,8 @@ In a production environment several logging libraries from different components 
 
 For more information see :doc:`/library/metadata/logging/factory`.
 
+.. _update26:
+
 GeoTools 26.x
 -------------
 
@@ -174,6 +309,8 @@ filter to make use of the faster and more robust `Google regular expression's li
 but inadvisable patterns, such as those with multi character escapes or wild cards. If you had patterns that 
 relied on long escape or wild card patterns you may now get an ``IllegalArgumentException`` for a pattern that 
 happened to work in the past.
+
+.. _update25:
 
 GeoTools 25.x
 -------------
@@ -400,6 +537,7 @@ See list of available constructors:
 For the same reason we will not allow changes to the headers after initialisation,
 and have deprecated ``public Map<String, String> getHeaders()``.
 
+.. _update24:
 
 GeoTools 24.x
 -------------
@@ -409,6 +547,8 @@ The Oracle extension was upgraded to use the current JDBC driver release. If you
 ``DbaseFileHeader.readHeader(ReadableByteChannel, Charset)`` method was removed. Instead ``DbaseFileHeader`` constructor must be used to pass a charset and ``DbaseFileHeader.readHeader(ReadableByteChannel)`` to read the header.
 
 The Units library (JSR 385) was updated to Units 2.0. This is mostly a change from package ``tec.uom.se.*`` to ``tech.units.indriya.*``. If you make any use of the Units library in your own code you will need to update the imports. There are also changes to the arithmetic operations' names. See this `blog post <https://schneide.blog/tag/unit-api-2-0/>`_ for more details.
+
+.. _update22:
 
 GeoTools 22.x
 -------------
@@ -508,6 +648,8 @@ AFTER :file:`pom.xml`:
      <snapshots><enabled>true</enabled></snapshots>
      <releases><enabled>false</enabled></releases>
    </repository>
+
+.. _update21:
 
 GeoTools 21.x
 -------------
@@ -634,6 +776,8 @@ AFTER :file:`pom.xml`:
        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
        <geotools.version>21.5</geotools.version>
    </properties>
+
+.. _update20:
 
 GeoTools 20.x
 -------------
@@ -802,6 +946,8 @@ You will find it no longer compiles. It should be converted to use the ``Quantit
     System.out.println(dist.to(MetricPrefix.KILO(SI.METRE)).getValue() + " Km");
     System.out.println(dist.to(USCustomary.MILE) + " miles");
 
+.. _update19:
+
 GeoTools 19.x
 -------------
 
@@ -810,6 +956,8 @@ GeoTools is built and tested with Java 8 at this time, to use this library in a 
     --add-modules=java.xml.bind --add-modules=java.activation -XX:+IgnoreUnrecognizedVMOptions
 
 These settings turn on several JRE modules that have been disabled by default in Java 9 onward.
+
+.. _update15:
 
 GeoTools 15.x
 -------------
@@ -829,6 +977,8 @@ GeoTools 15.x requires Java 8::
             </plugin>
         </plugins>
     </build>
+
+.. _update14:
 
 GeoTools 14.x
 -------------
@@ -873,6 +1023,8 @@ AFTER::
 
 ``ShapefileDataStore`` representing shapefiles without any data, now return empty bounds on ``getBounds()`` instead of the bounds inside the shapefile header (mostly [0:0,0:0]). So ``bounds.isEmpty()`` and ``bounds.isNull()`` will return true for empty shapefiles.
 
+.. _update13:
+
 GeoTools 13.0
 -------------
 As of GeoTools 13.0, the ``CoverageViewType`` classes have been removed. The ``AbstractDataStore`` class is also now deprecated. Extensive work has been done to bring in ``ContentDataStore`` as its replacement.
@@ -888,15 +1040,21 @@ Many readers and iterators are now ``Closable`` for use with try-with-resource s
        }
    }
 
+.. _update12:
+
 GeoTools 12.0
 -------------
 GeoTools now requires `Java 7 <http://docs.geotools.org/latest/userguide/build/install/jdk.html>`_ and this is the first release tested with OpenJDK! Please ensure you are using JDK 1.7 or newer for GeoTools 12. Both Oracle Java 7 and OpenJDK 7 are supported, tested, release targets.
 
 Filter interfaces have been simplified. The GeoTools interfaces have been deprecated since GeoTools 2.3, and finally they have been removed. All filter interfaces now use the GeoAPI Filter.
 
+.. _update11:
+
 GeoTools 11.0
 -------------
 Only new features were added in GeoTools 11.0.
+
+.. _update10:
 
 GeoTools 10.0
 -------------
@@ -917,6 +1075,8 @@ BEFORE::
 AFTER::
  
   GridCoverage2DReader reader = format.getReader(source);
+
+.. _update9:
 
 GeoTools 9.0
 ------------
@@ -1095,6 +1255,9 @@ JAVA7 using try-with-resource syntax for ``Iterator`` that implements ``Closeabl
     }
     
 
+.. _update8:
+
+
 GeoTools 8.0
 ------------
 
@@ -1155,7 +1318,7 @@ FeatureId
 
 * AFTER
 
-  .. literalinclude:: /../src/main/java/org/geotools/opengis/FilterExamples.java
+  .. literalinclude:: /../src/main/java/org/geotools/api/FilterExamples.java
      :language: java
      :start-after: // id start
      :end-before: // id end
@@ -1234,6 +1397,8 @@ AFTER::
 
       NumberRange<Double> after1 = new NumberRange( Double.class, 0.0, 5.0 );
       NumberRange<Double> after2 = NumberRage.create( 0.0, 5.0 );
+
+.. _update7:
 
 GeoTools 2.7
 ------------
@@ -1433,6 +1598,9 @@ Old Method                          New Method
 ``getLength(dimension, unit)``      ``double getSpan(dimension, unit)``
 =================================== ===================================================
 
+.. _update6:
+
+
 GeoTools 2.6
 ------------
 
@@ -1465,9 +1633,9 @@ This is shown in the code example below with the ``maxx`` variable.
 
 As far as switching over to the new classes, the equivalence are as follows:
 
-1. Replace ``GridRange2D`` with ``GridEnvelope2D``
+1. Replace ``GridRange2D`` with ``GridGeneralBounds``
 
-   Notice that now ``GridEnvelope2D`` is a Java2D ``Rectangle`` and that it is also mutable!
+   Notice that now ``GridGeneralBounds`` is a Java2D ``Rectangle`` and that it is also mutable!
 2. Replace ``GeneralGridRange`` with ``GeneralGridEnvelope``
 
 There are a few more caveats, which we are showing here below.
@@ -1503,9 +1671,9 @@ BEFORE:
         final int w = originalGridRange.getSpan(0);
         final int maxx = originalGridRange.getHigh(0)+1;
 
-        import org.geotools.coverage.grid.GridEnvelope2D;
+        import org.geotools.coverage.grid.GridGeneralBounds;
         final Rectangle actualDim = new Rectangle(0, 0, hrWidth, hrHeight);
-        final GridEnvelope2D originalGridRange2D = new GridEnvelope2D(actualDim);
+        final GridGeneralBounds originalGridRange2D = new GridGeneralBounds(actualDim);
         final int w = originalGridRange2D.getSpan(0);
         final int maxx = originalGridRange2D.getHigh(0)+1;
         final Rectangle rect = (Rectangle)originalGridRange2D.clone();
@@ -1648,6 +1816,9 @@ Removed deprecated constructors from ``DefaultParameterDescriptor`` and ``Parame
 
     DefaultParameterDescriptor.create(...)
     Parameter.create(...)
+
+.. _update5:
+
 
 GeoTools 2.5
 ------------
@@ -1971,6 +2142,8 @@ DataAccess and DataStore
      Feature feature = features.next();
     }
     //No DataAccess.getFeatureReader/Writer
+
+.. _update4:
 
 GeoTools 2.4
 ------------

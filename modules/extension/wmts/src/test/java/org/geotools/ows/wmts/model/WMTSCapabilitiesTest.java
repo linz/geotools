@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.geotools.api.metadata.citation.Address;
 import org.geotools.data.ows.OperationType;
 import org.geotools.ows.wms.CRSEnvelope;
 import org.geotools.ows.wmts.WMTSSpecification;
@@ -29,7 +30,6 @@ import org.geotools.ows.wmts.WebMapTileServer;
 import org.geotools.util.logging.Logging;
 import org.junit.Assert;
 import org.junit.Test;
-import org.opengis.metadata.citation.Address;
 import org.xml.sax.SAXException;
 
 public class WMTSCapabilitiesTest {
@@ -325,6 +325,23 @@ public class WMTSCapabilitiesTest {
                         new URL("https://basemaps.linz.govt.nz/v1/tiles/WMTSCapabilities.xml"),
                         capabilities);
         Assert.assertNotNull(tileServer);
+    }
+
+    /**
+     * Testing WMTSCapabilities parseLayer and it's support for missing Title, multiple Title
+     * elements with different xml:lang, and multiple abstracts.
+     */
+    @Test
+    public void testMultilanguageCapabilities() throws Exception {
+        WMTSCapabilities capabilities = createCapabilities("multilang.getcapa.xml");
+        WMTSLayer layer = capabilities.getLayer("plz");
+        Assert.assertEquals("Post Code", layer.getTitle());
+
+        WMTSLayer layer2 = capabilities.getLayer("isolines");
+        Assert.assertEquals("isolines", layer2.getTitle());
+
+        WMTSLayer layer3 = capabilities.getLayer("overlay-all");
+        Assert.assertEquals("Map overlay with all layers.", layer3.get_abstract());
     }
 
     protected WebMapTileServer getCustomWMS(URL featureURL)

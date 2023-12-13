@@ -30,6 +30,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -54,7 +55,6 @@ import javax.swing.event.ChangeListener;
 import javax.swing.event.EventListenerList;
 import javax.xml.parsers.SAXParser;
 import org.geotools.metadata.i18n.ErrorKeys;
-import org.geotools.metadata.i18n.Errors;
 import org.geotools.util.Arguments;
 import org.geotools.util.Classes;
 import org.geotools.util.NullEntityResolver;
@@ -189,6 +189,27 @@ public final class GeoTools {
 
     /**
      * The {@linkplain System#getProperty(String) system property} key for the default value to be
+     * assigned to the {@link Hints# FORCE_SRS_STYLE} hint.
+     *
+     * <p>GML Encoding in geotools forces http://www.opengis.net/gml/srs/epsg.xml# syntax on CRS
+     * that are East\North oriented or have no orientation (such as 1D CRS). This property prevents
+     * this behaviour.
+     *
+     * <blockquote>
+     *
+     * <pre>
+     * System.setProperty(FORCE_SRS_STYLE, "true");
+     * </pre>
+     *
+     * </blockquote>
+     *
+     * @see Hints#FORCE_SRS_STYLE
+     * @see #getDefaultHints
+     */
+    public static final String FORCE_SRS_STYLE = "org.geotools.gml.forceSrsStyle";
+
+    /**
+     * The {@linkplain System#getProperty(String) system property} key for the default value to be
      * assigned to the {@link Hints# ENTITY_RESOLVER} hint.
      *
      * <p>This setting specifies the XML Entity resolver to be used when configuring a SAXParser
@@ -240,8 +261,8 @@ public final class GeoTools {
      * assigned to the {@link Hints#ENCODE_EWKT} hint.
      *
      * <p>This setting specifies if geometries with {@link
-     * org.opengis.referencing.crs.CoordinateReferenceSystem} in the user data shall be encoded as
-     * EWKT or not.
+     * org.geotools.api.referencing.crs.CoordinateReferenceSystem} in the user data shall be encoded
+     * as EWKT or not.
      *
      * @see Hints#ENCODE_EWKT
      * @see #getDefaultHints
@@ -305,6 +326,7 @@ public final class GeoTools {
         bind(DATE_TIME_FORMAT_HANDLING, Hints.DATE_TIME_FORMAT_HANDLING, bindings);
         bind(HTTP_CLIENT, Hints.HTTP_CLIENT, bindings);
         bind(HTTP_LOGGING, Hints.HTTP_LOGGING, bindings);
+        bind(FORCE_SRS_STYLE, Hints.FORCE_SRS_STYLE, bindings);
         BINDINGS = Collections.unmodifiableMap(bindings);
     }
 
@@ -350,7 +372,7 @@ public final class GeoTools {
         final RenderingHints.Key old = bindings.putIfAbsent(property, key);
         if (old != null) {
             throw new IllegalArgumentException(
-                    Errors.format(ErrorKeys.ILLEGAL_ARGUMENT_$2, "property", property));
+                    MessageFormat.format(ErrorKeys.ILLEGAL_ARGUMENT_$2, "property", property));
         }
     }
 
@@ -702,7 +724,7 @@ public final class GeoTools {
      * <p>In addition, the {@linkplain #getDefaultHints default hints} are initialized to the
      * specified {@code hints}.
      *
-     * <p>Invoking this method is <strong>not</strong> required fpr the GeoTools library to
+     * <p>Invoking this method is <strong>not</strong> required for the GeoTools library to
      * function. It is just a convenience method for overwriting select Java and GeoTools default
      * settings. Supplying these defaults is not desirable in all settings, such as writing test
      * cases.

@@ -16,12 +16,12 @@
  */
 package org.geotools.jdbc;
 
+import static org.geotools.api.filter.sort.SortOrder.ASCENDING;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
-import static org.opengis.filter.sort.SortOrder.ASCENDING;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -31,7 +31,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.geotools.data.Query;
+import org.geotools.api.data.Query;
+import org.geotools.api.feature.Feature;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.filter.FilterFactory;
+import org.geotools.api.filter.expression.Expression;
+import org.geotools.api.filter.expression.PropertyName;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.feature.visitor.AverageVisitor;
 import org.geotools.feature.visitor.GroupByVisitor;
@@ -50,12 +56,6 @@ import org.geotools.filter.function.FilterFunction_area;
 import org.geotools.util.Converters;
 import org.junit.Before;
 import org.junit.Test;
-import org.opengis.feature.Feature;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.filter.Filter;
-import org.opengis.filter.FilterFactory;
-import org.opengis.filter.expression.Expression;
-import org.opengis.filter.expression.PropertyName;
 
 public abstract class JDBCAggregateFunctionOnlineTest extends JDBCTestSupport {
 
@@ -413,6 +413,25 @@ public abstract class JDBCAggregateFunctionOnlineTest extends JDBCTestSupport {
         Set result = v.getResult().toSet();
         assertEquals(2, result.size());
         assertEquals("one", result.iterator().next());
+    }
+
+    @Test
+    public void testUniqueWithNonMatchingSort() throws Exception {
+        assumeTrue(dataStore.getSQLDialect().isAggregatedSortSupported("distinct"));
+
+        FilterFactory ff = dataStore.getFilterFactory();
+        PropertyName p = ff.property(aname("stringProperty"));
+
+        UniqueVisitor v = new MyUniqueVisitor(p);
+        v.setStartIndex(0);
+        Query q = new Query(tname("ft1"));
+        PropertyName pNonMatching = ff.property(aname("doubleProperty"));
+        q.setSortBy(new SortByImpl(pNonMatching, ASCENDING));
+        // used to fail with an exception, because stringProperty was in order by, but not in select
+        dataStore.getFeatureSource(tname("ft1")).accepts(q, v, null);
+        assertFalse(visited);
+        Set result = v.getResult().toSet();
+        assertEquals(3, result.size());
     }
 
     @Test

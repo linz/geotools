@@ -35,15 +35,35 @@ import javax.xml.namespace.QName;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.geotools.api.data.DataAccess;
+import org.geotools.api.data.DataSourceException;
+import org.geotools.api.data.FeatureReader;
+import org.geotools.api.data.FeatureSource;
+import org.geotools.api.data.Query;
+import org.geotools.api.data.Transaction;
+import org.geotools.api.feature.Attribute;
+import org.geotools.api.feature.ComplexAttribute;
+import org.geotools.api.feature.Feature;
+import org.geotools.api.feature.Property;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.feature.type.AttributeDescriptor;
+import org.geotools.api.feature.type.AttributeType;
+import org.geotools.api.feature.type.FeatureType;
+import org.geotools.api.feature.type.GeometryDescriptor;
+import org.geotools.api.feature.type.GeometryType;
+import org.geotools.api.feature.type.Name;
+import org.geotools.api.feature.type.PropertyDescriptor;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.filter.FilterFactory;
+import org.geotools.api.filter.expression.Expression;
+import org.geotools.api.filter.expression.Literal;
+import org.geotools.api.filter.expression.PropertyName;
+import org.geotools.api.filter.identity.FeatureId;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
 import org.geotools.appschema.feature.AppSchemaAttributeBuilder;
 import org.geotools.appschema.jdbc.JoiningJDBCFeatureSource;
-import org.geotools.data.DataAccess;
-import org.geotools.data.DataSourceException;
 import org.geotools.data.DefaultTransaction;
-import org.geotools.data.FeatureReader;
-import org.geotools.data.FeatureSource;
-import org.geotools.data.Query;
-import org.geotools.data.Transaction;
 import org.geotools.data.complex.config.AppSchemaDataAccessConfigurator.ComplexNameImpl;
 import org.geotools.data.complex.config.JdbcMultipleValue;
 import org.geotools.data.complex.config.MultipleValue;
@@ -61,30 +81,11 @@ import org.geotools.feature.FeatureImpl;
 import org.geotools.feature.FeatureIterator;
 import org.geotools.filter.AttributeExpressionImpl;
 import org.geotools.filter.FilterAttributeExtractor;
+import org.geotools.gml2.SrsSyntax;
 import org.geotools.gml2.bindings.GML2EncodingUtils;
 import org.geotools.jdbc.JDBCFeatureSource;
 import org.geotools.jdbc.JDBCFeatureStore;
 import org.geotools.referencing.CRS;
-import org.opengis.feature.Attribute;
-import org.opengis.feature.ComplexAttribute;
-import org.opengis.feature.Feature;
-import org.opengis.feature.Property;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.feature.type.AttributeDescriptor;
-import org.opengis.feature.type.AttributeType;
-import org.opengis.feature.type.FeatureType;
-import org.opengis.feature.type.GeometryDescriptor;
-import org.opengis.feature.type.GeometryType;
-import org.opengis.feature.type.Name;
-import org.opengis.feature.type.PropertyDescriptor;
-import org.opengis.filter.Filter;
-import org.opengis.filter.FilterFactory;
-import org.opengis.filter.expression.Expression;
-import org.opengis.filter.expression.Literal;
-import org.opengis.filter.expression.PropertyName;
-import org.opengis.filter.identity.FeatureId;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.xml.sax.Attributes;
 
 /**
@@ -760,17 +761,6 @@ public class DataAccessMappingFeatureIterator extends AbstractMappingFeatureIter
             Collection<Object> cobjs = (Collection<Object>) values;
             for (Object singleVal : cobjs) {
                 ArrayList<Object> valueList = new ArrayList<>();
-                // copy client properties from input features if they're complex features
-                // wrapped in app-schema data access
-                if (singleVal instanceof Attribute) {
-                    // copy client properties from input features if they're complex features
-                    // wrapped in app-schema data access
-                    final Map<Name, Expression> valueProperties =
-                            getClientProperties((Attribute) singleVal);
-                    if (!valueProperties.isEmpty()) {
-                        clientPropsMappings.putAll(valueProperties);
-                    }
-                }
                 Map<Name, Expression> clientProperties = clientPropsMappings;
                 if (!isNestedFeature) {
                     if (singleVal instanceof Attribute) {
@@ -1748,11 +1738,12 @@ public class DataAccessMappingFeatureIterator extends AbstractMappingFeatureIter
             if (wfsVersion.equals("1.0.0")) {
                 return nativeCRS;
             } else {
-                String code = GML2EncodingUtils.epsgCode(nativeCRS);
+                String srsName =
+                        GML2EncodingUtils.toURI(nativeCRS, SrsSyntax.OGC_URN_EXPERIMENTAL, false);
                 // it's possible that we can't do the CRS -> code -> CRS conversion...so we'll just
                 // return what we have
-                if (code == null) return nativeCRS;
-                return CRS.decode("urn:x-ogc:def:crs:EPSG:6.11.2:" + code);
+                if (srsName == null) return nativeCRS;
+                return CRS.decode(srsName);
             }
         } catch (Exception e) {
             throw new UnsupportedOperationException(

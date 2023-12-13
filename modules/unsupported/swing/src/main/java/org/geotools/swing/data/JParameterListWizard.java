@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.geotools.data.Parameter;
+import org.geotools.api.data.Parameter;
 import org.geotools.swing.wizard.JWizard;
 import org.geotools.util.URLs;
 
@@ -33,11 +33,11 @@ import org.geotools.util.URLs;
  * <p>Example of use (from the GeoTools example project):
  *
  * <pre><code>
- * List<Parameter<?>> list = new ArrayList<Parameter<?>>();
- * list.add(new Parameter<File>("image", File.class, "Image",
+ * List&lt;Parameter&lt;?&gt;&gt; list = new ArrayList&lt;Parameter&lt;?&gt;&gt;();
+ * list.add(new Parameter&lt;File&gt;("image", File.class, "Image",
  * "GeoTiff or World+Image to display as basemap",
  * new KVP( Parameter.EXT, "tif", Parameter.EXT, "jpg")));
- * list.add(new Parameter<File>("shape", File.class, "Shapefile",
+ * list.add(new Parameter&lt;File&gt;("shape", File.class, "Shapefile",
  * "Shapefile contents to display", new KVP(Parameter.EXT, "shp")));
  *
  * JParameterListWizard wizard = new JParameterListWizard("Image Lab",
